@@ -7,8 +7,9 @@ apply_velocity()
 
 
 
-x+=hsp
-y+=vsp
+var _frame_scale = max(0, delta_time / 1000000) * 60
+x+=hsp * _frame_scale
+y+=vsp * _frame_scale
 
 
 if keyboard_check_pressed(ord("B")){
@@ -22,7 +23,8 @@ with (obj_camera_manager)  {
   if  (!is_undefined(_data) && instance_exists(_data.obj))  {
     if  (_data.obj.mode == CAM_MODE.FOLLOW_OBJECT && _data.obj.object_to_follow == other.id)  {
       var _zoom_input = keyboard_check(ord("Y")) - keyboard_check(ord("H"))
-      camera_set_zoom("main", _data.obj.new_zoom_percent + _zoom_input * _data.obj.zoom_spd)
+      var _seconds = max(0, delta_time / 1000000)
+      camera_adjust_zoom("main", _zoom_input * _data.obj.zoom_input_spd * _seconds)
     }
   }
 }

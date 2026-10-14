@@ -7,8 +7,9 @@ apply_velocity()
 
 
 
-x+=hsp
-y+=vsp
+var _frame_scale = max(0, delta_time / 1000000) * 60
+x+=hsp * _frame_scale
+y+=vsp * _frame_scale
 
 
 if keyboard_check_pressed(ord("B")){
@@ -23,7 +24,8 @@ with (obj_camera_manager)  {
     if keyboard_check_pressed(ord("C")) camera_set_offset("player2",0,-69)
     if  (_data.obj.mode == CAM_MODE.FOLLOW_OBJECT && _data.obj.object_to_follow == other.id)  {
       var _zoom_input = keyboard_check(ord("U")) - keyboard_check(ord("J"))
-      camera_set_zoom("player2", _data.obj.new_zoom_percent + _zoom_input * _data.obj.zoom_spd)
+      var _seconds = max(0, delta_time / 1000000)
+      camera_adjust_zoom("player2", _zoom_input * _data.obj.zoom_input_spd * _seconds)
     }
   }
 }

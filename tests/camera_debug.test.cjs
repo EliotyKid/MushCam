@@ -12,6 +12,7 @@ const clicked = new Set()
 const watches = new Map()
 const views = new Set()
 let temporary
+let configuredFps = 60
 const manager = runSource(managerSource.slice(0, managerSource.indexOf('create_camera("main"')), {
   ...common,
   variable_struct_get_names: Object.keys,
@@ -39,6 +40,9 @@ manager.create_viewport(1, 'player2', new common.Vec2(320, 0), new common.Vec2(3
 const panel = {
   ...common,
   _manager: manager,
+  gamespeed_fps: 0,
+  game_get_speed: () => configuredFps,
+  game_set_speed: value => { configuredFps = value },
   obj_player: 2, obj_player2: 3,
   is_struct: value => value !== null && typeof value === 'object',
   variable_struct_get_names: Object.keys,
@@ -91,12 +95,47 @@ click('Seguir noone')
 panel.zoom_percent = .5
 click('Aplicar zoom')
 assert.equal(manager.cameras.main.obj.new_zoom_percent, .5)
+click('Aproximar')
+assert.equal(manager.cameras.main.obj.new_zoom_percent, .6)
+click('Afastar')
+assert.equal(manager.cameras.main.obj.new_zoom_percent, .5)
 panel.offset_y = -60
 click('Aplicar offset')
 assert.equal(manager.cameras.main.obj.target_offset.y, -60)
 panel.can_outside_room = false
+panel.move_spd_x = .2
+panel.move_spd_y = .04
+panel.zoom_spd = .07
+panel.zoom_input_spd = 2
 click('Aplicar ajustes')
 assert.equal(manager.cameras.main.obj.can_outside_room, false)
+assert.deepEqual([manager.cameras.main.obj.spd.x, manager.cameras.main.obj.spd.y], [.2, .04])
+assert.equal(manager.cameras.main.obj.zoom_spd, .07)
+assert.equal(manager.cameras.main.obj.zoom_input_spd, 2)
+panel.bounds_x = 100
+panel.bounds_y = 80
+panel.bounds_width = 500
+panel.bounds_height = 400
+click('Aplicar area personalizada')
+panel.update()
+assert.equal(panel.camera_limits_enabled, true)
+assert.equal(panel.camera_uses_room, false)
+assert.deepEqual([panel.camera_bounds.pos.x, panel.camera_bounds.size.x], [100, 500])
+panel.bounds_width = 0
+click('Aplicar area personalizada', false)
+panel.can_outside_room = true
+click('Aplicar ativacao dos limites')
+assert.equal(manager.cameras.main.obj.can_outside_room, true)
+assert.notEqual(manager.cameras.main.obj.bounds, undefined)
+click('Usar area da room')
+assert.equal(manager.cameras.main.obj.bounds, undefined)
+assert.equal(manager.cameras.main.obj.can_outside_room, false)
+panel.selected_fps = 30
+click('Aplicar FPS')
+panel.update()
+assert.equal(panel.current_fps, 30)
+click('Restaurar FPS')
+assert.equal(configuredFps, 60)
 click('Criar alvo no ponto')
 click('Seguir alvo temporario')
 assert.equal(manager.cameras.main.obj.object_to_follow, temporary)
@@ -135,7 +174,10 @@ click('Destruir viewport')
 click('Criar camera')
 click('Criar camera', false)
 click('Criar alvo no ponto')
+panel.selected_fps = 144
+click('Aplicar FPS')
 panel.destroy()
+assert.equal(configuredFps, 60, 'Cleanup must restore the original FPS')
 assert.equal(views.size, 0)
 assert.equal(temporary.destroyed, true)
 assert.equal(clicked.size, buttons.size, 'Every debug button must be exercised')

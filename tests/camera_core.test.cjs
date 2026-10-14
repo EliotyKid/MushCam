@@ -30,12 +30,17 @@ const common = {
   LAYOUT: { SINGLE: 0, SPLIT_VERTICAL: 1, SPLIT_HORIZONTAL: 2, GRID: 3, LENGHT: 4 },
   min: Math.min, max: Math.max, floor: Math.floor, ceil: Math.ceil,
   sqrt: Math.sqrt, round: Math.round,
+  power: Math.pow,
+  delta_time: 1000000 / 60,
   lerp: (a, b, t) => a + (b - a) * t,
   point_distance: (x1, y1, x2, y2) => Math.hypot(x2 - x1, y2 - y1),
   clamp: (v, lo, hi) => Math.max(lo, Math.min(hi, v)),
   array_length: a => a.length,
   array_push: (a, item) => a.push(item),
   is_string: v => typeof v === 'string',
+  is_real: v => typeof v === 'number',
+  is_nan: Number.isNaN,
+  is_infinity: v => v === Infinity || v === -Infinity,
   is_undefined: v => v === undefined,
   variable_struct_exists: (s, k) => Object.hasOwn(s, k),
   instance_exists: v => v !== null && v !== -4 && v?.destroyed !== true,
@@ -68,7 +73,7 @@ const camera = makeCamera()
 camera.update_camera()
 assert.deepEqual([camera.cam.x, camera.cam.y], [0, 0])
 camera.set_follow_target({ x: 500, y: 400 })
-camera.spd = 1
+camera.set_smoothing(1)
 camera.update_camera()
 assert.deepEqual([camera.pos.x, camera.pos.y], [500, 400])
 
@@ -130,7 +135,8 @@ const second = makeCamera()
 const minimap = makeCamera()
 main.set_follow_target({ x: 500, y: 400 })
 second.set_follow_target({ x: 700, y: 400 })
-main.spd = second.spd = 1
+main.set_smoothing(1)
+second.set_smoothing(1)
 const manager = runSource(managerSource.slice(0, managerSource.indexOf('create_camera("main"')), {
   ...common,
   view_visible: [], view_xport: [], view_yport: [], view_wport: [], view_hport: [],

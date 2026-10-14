@@ -16,9 +16,24 @@ function CameraDebug(_manager) constructor {
   zoom_percent = 0
   zoom_range = .5
   zoom_spd = .05
-  move_spd = .1
+  move_spd_x = .1
+  move_spd_y = .1
+  zoom_input_spd = 3
+  zoom_step = .1
+  original_fps = game_get_speed(gamespeed_fps)
+  selected_fps = original_fps
+  current_fps = original_fps
+  frame_ms = 0
+  fps_changed = false
   arrival_distance = .5
   can_outside_room = true
+  bounds_x = 0
+  bounds_y = 0
+  bounds_width = room_width
+  bounds_height = room_height
+  camera_bounds = undefined
+  camera_limits_enabled = false
+  camera_uses_room = true
   screen_width = 640
   screen_height = 380
   viewport_id = 0
@@ -45,6 +60,8 @@ function CameraDebug(_manager) constructor {
   camera_follow_pos = new Vec2(0)
   camera_zoom = 0
   camera_zoom_target = 0
+  camera_smoothing = new Vec2(.1)
+  camera_zoom_smoothing = .05
   current_layout = LAYOUT.SINGLE
   layout_transition = false
   layout_progress = 0
@@ -64,6 +81,8 @@ function CameraDebug(_manager) constructor {
   }
 
   update = function()  {
+    current_fps = game_get_speed(gamespeed_fps)
+    frame_ms = delta_time / 1000
     camera_names = variable_struct_get_names(manager.cameras)
     current_layout = manager.current_layout
     layout_transition = manager.layout_transition
@@ -85,6 +104,11 @@ function CameraDebug(_manager) constructor {
       camera_follow_pos = undefined
       camera_zoom = undefined
       camera_zoom_target = undefined
+      camera_smoothing = undefined
+      camera_zoom_smoothing = undefined
+      camera_bounds = undefined
+      camera_limits_enabled = false
+      camera_uses_room = false
       return undefined
     }
     var _obj = _data.obj
@@ -100,6 +124,11 @@ function CameraDebug(_manager) constructor {
     camera_follow_pos = new Vec2(_obj.follow_target_pos.x, _obj.follow_target_pos.y)
     camera_zoom = _obj.zoom_percent
     camera_zoom_target = _obj.new_zoom_percent
+    camera_smoothing = new Vec2(_obj.spd.x, _obj.spd.y)
+    camera_zoom_smoothing = _obj.zoom_spd
+    camera_bounds = _obj.get_bounds()
+    camera_limits_enabled = !_obj.can_outside_room
+    camera_uses_room = is_undefined(_obj.bounds)
   }
 
   load_camera = function()  {
@@ -117,9 +146,16 @@ function CameraDebug(_manager) constructor {
     zoom_percent = _obj.new_zoom_percent
     zoom_range = _obj.zoom_range
     zoom_spd = _obj.zoom_spd
-    move_spd = _obj.spd
+    move_spd_x = _obj.spd.x
+    move_spd_y = _obj.spd.y
+    zoom_input_spd = _obj.zoom_input_spd
     arrival_distance = _obj.arrival_distance
     can_outside_room = _obj.can_outside_room
+    var _bounds = _obj.get_bounds()
+    bounds_x = _bounds.pos.x
+    bounds_y = _bounds.pos.y
+    bounds_width = _bounds.size.x
+    bounds_height = _bounds.size.y
     if  (instance_exists(_obj.object_to_follow))  follow_target = _obj.object_to_follow
     update()
   }
@@ -128,11 +164,10 @@ function CameraDebug(_manager) constructor {
     var _data = get_selected()
     report("Ajustes", !is_undefined(_data))
     if  (is_undefined(_data))  return undefined
-    _data.obj.zoom_range = clamp(zoom_range, 0, .95)
-    _data.obj.zoom_spd = clamp(zoom_spd, 0, 1)
-    _data.obj.spd = clamp(move_spd, 0, 1)
+    manager.camera_set_zoom_settings(camera_name, zoom_range, zoom_input_spd)
+    manager.camera_set_smoothing(camera_name, move_spd_x, move_spd_y, zoom_spd)
     _data.obj.arrival_distance = max(0, arrival_distance)
-    _data.obj.can_outside_room = can_outside_room
+    manager.camera_set_limits_enabled(camera_name, !can_outside_room)
   }
 
   load_viewport = function()  {
@@ -165,6 +200,7 @@ function CameraDebug(_manager) constructor {
   }
 
   destroy = function()  {
+    if  (fps_changed)  game_set_speed(original_fps, gamespeed_fps)
     if  (!is_undefined(debug_view))  dbg_view_delete(debug_view)
     if  (instance_exists(temporary_target))  instance_destroy(temporary_target)
     debug_view = undefined
@@ -240,6 +276,13 @@ function CameraDebug(_manager) constructor {
   dbg_button("Aplicar zoom", function()  {
     report("camera_set_zoom", manager.camera_set_zoom(camera_name, zoom_percent))
   })
+  dbg_slider(ref_create(self, "zoom_step"), .01, 1, "Passo de zoom", .01)
+  dbg_button("Aproximar", function()  {
+    report("camera_adjust_zoom", manager.camera_adjust_zoom(camera_name, zoom_step))
+  })
+  dbg_button("Afastar", function()  {
+    report("camera_adjust_zoom", manager.camera_adjust_zoom(camera_name, -zoom_step))
+  })
   dbg_text_input(ref_create(self, "offset_x"), "Offset X", "f")
   dbg_text_input(ref_create(self, "offset_y"), "Offset Y", "f")
   dbg_button("Aplicar offset", function()  {
@@ -247,10 +290,58 @@ function CameraDebug(_manager) constructor {
   })
   dbg_slider(ref_create(self, "zoom_range"), 0, .95, "Zoom Range", .01)
   dbg_slider(ref_create(self, "zoom_spd"), 0, 1, "Suavizacao zoom", .01)
-  dbg_slider(ref_create(self, "move_spd"), 0, 1, "Suavizacao movimento", .01)
+  dbg_slider(ref_create(self, "move_spd_x"), 0, 1, "Suavizacao X", .01)
+  dbg_slider(ref_create(self, "move_spd_y"), 0, 1, "Suavizacao Y", .01)
+  dbg_text_input(ref_create(self, "zoom_input_spd"), "Velocidade zoom por segundo", "f")
+  dbg_watch(ref_create(self, "camera_smoothing"), "Suavizacao X/Y atual")
+  dbg_watch(ref_create(self, "camera_zoom_smoothing"), "Suavizacao zoom atual")
   dbg_text_input(ref_create(self, "arrival_distance"), "Distancia de chegada", "f")
-  dbg_checkbox(ref_create(self, "can_outside_room"), "Permitir sair da room")
   dbg_button("Aplicar ajustes", apply_settings)
+
+  dbg_section("Limites da area")
+  dbg_watch(ref_create(self, "camera_bounds"), "Retangulo atual")
+  dbg_watch(ref_create(self, "camera_limits_enabled"), "Limites ativos")
+  dbg_watch(ref_create(self, "camera_uses_room"), "Usa area da room")
+  dbg_text_input(ref_create(self, "bounds_x"), "Area X", "f")
+  dbg_text_input(ref_create(self, "bounds_y"), "Area Y", "f")
+  dbg_text_input(ref_create(self, "bounds_width"), "Area largura", "f")
+  dbg_text_input(ref_create(self, "bounds_height"), "Area altura", "f")
+  dbg_button("Aplicar area personalizada", function()  {
+    var _result = manager.camera_set_bounds(camera_name, bounds_x, bounds_y, bounds_width, bounds_height)
+    if  (_result)  can_outside_room = false
+    report("camera_set_bounds", _result)
+  })
+  dbg_button("Usar area da room", function()  {
+    var _result = manager.camera_use_room_bounds(camera_name)
+    if  (_result)  {
+      can_outside_room = false
+      bounds_x = 0
+      bounds_y = 0
+      bounds_width = room_width
+      bounds_height = room_height
+    }
+    report("camera_use_room_bounds", _result)
+  })
+  dbg_checkbox(ref_create(self, "can_outside_room"), "Desativar limites")
+  dbg_button("Aplicar ativacao dos limites", function()  {
+    report("camera_set_limits_enabled", manager.camera_set_limits_enabled(camera_name, !can_outside_room))
+  })
+
+  dbg_section("Teste de FPS")
+  dbg_watch(ref_create(self, "current_fps"), "FPS configurado")
+  dbg_watch(ref_create(self, "frame_ms"), "Tempo do frame em ms")
+  dbg_drop_down(ref_create(self, "selected_fps"), "30 FPS:30,60 FPS:60,120 FPS:120,144 FPS:144", "FPS de teste")
+  dbg_button("Aplicar FPS", function()  {
+    game_set_speed(selected_fps, gamespeed_fps)
+    fps_changed = true
+    report("game_set_speed", true)
+  })
+  dbg_button("Restaurar FPS", function()  {
+    game_set_speed(original_fps, gamespeed_fps)
+    selected_fps = original_fps
+    fps_changed = false
+    report("Restaurar FPS", true)
+  })
 
   dbg_section("Perda do alvo")
   dbg_watch(ref_create(self, "temporary_target"), "Alvo temporario")

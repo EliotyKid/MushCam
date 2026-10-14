@@ -1,0 +1,120 @@
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
+const { common, makeCamera, runSource } = require('./camera_core.test.cjs')
+const camera = makeCamera()
+camera.set_smoothing(1, 1, 1)
+assert.equal(camera.set_bounds(100, 200, 800, 600), true)
+assert.equal(camera.can_outside_room, false)
+camera.set_position(-1000, -1000)
+camera.update_camera()
+assert.deepEqual([camera.pos.x, camera.pos.y], [260, 390])
+assert.deepEqual([camera.cam.x, camera.cam.y], [100, 200])
+camera.set_position(2000, 2000)
+camera.update_camera()
+assert.deepEqual([camera.pos.x, camera.pos.y], [740, 610])
+assert.deepEqual([camera.cam.x + camera.cam.width, camera.cam.y + camera.cam.height], [900, 800])
+camera.set_target_offset(20, -50)
+camera.set_follow_target({ x: -200, y: -200 }, true)
+camera.update_camera()
+assert.deepEqual([camera.pos.x, camera.pos.y], [260, 390])
+camera.move_to(3000, 3000)
+camera.update_camera()
+assert.equal(camera.mode, common.CAM_MODE.FIXED)
+assert.deepEqual([camera.pos.x, camera.pos.y], [740, 610])
+camera.move_by(5000, -5000)
+camera.update_camera()
+assert.equal(camera.mode, common.CAM_MODE.MANUAL)
+assert.deepEqual([camera.pos.x, camera.pos.y], [740, 390])
+
+camera.set_bounds(-600, -400, 800, 600)
+camera.set_position(-1000, -1000)
+camera.update_camera()
+assert.deepEqual([camera.cam.x, camera.cam.y], [-600, -400])
+const storedBounds = camera.bounds
+for (const invalid of [[0, 0, 0, 10], [0, 0, 10, -10], ['x', 0, 10, 10],
+  [NaN, 0, 10, 10], [0, Infinity, 10, 10], [0, 0, Infinity, 10],
+  [Number.MAX_VALUE, 0, Number.MAX_VALUE, 10]]) {
+  assert.equal(camera.set_bounds(...invalid), false)
+  assert.equal(camera.bounds, storedBounds, 'Invalid rectangles must preserve existing settings')
+}
+camera.set_limits_enabled(false)
+camera.set_position(3000, -3000)
+camera.update_camera()
+assert.deepEqual([camera.pos.x, camera.pos.y], [3000, -3000])
+assert.equal(camera.bounds, storedBounds)
+camera.set_limits_enabled()
+camera.update_camera()
+assert.deepEqual([camera.pos.x, camera.pos.y], [40, -210])
+
+camera.set_bounds(100, 200, 100, 600)
+camera.set_position(9000, 9000)
+camera.update_camera()
+assert.deepEqual([camera.pos.x, camera.pos.y], [150, 610], 'Oversized width centers X and still limits Y')
+camera.set_bounds(100, 200, 800, 100)
+camera.set_position(9000, 9000)
+camera.update_camera()
+assert.deepEqual([camera.pos.x, camera.pos.y], [740, 250], 'Oversized height centers Y and still limits X')
+camera.set_bounds(100, 200, 320, 380)
+camera.set_position(9000, 9000)
+camera.update_camera()
+assert.deepEqual([camera.pos.x, camera.pos.y], [260, 390], 'Exact fit uses the rectangle center')
+camera.set_zoom_percent(-1)
+camera.update_camera()
+assert.deepEqual([camera.pos.x, camera.pos.y], [260, 390])
+assert.deepEqual([camera.cam.width, camera.cam.height], [480, 570])
+camera.set_zoom_percent(1)
+camera.update_camera()
+assert.equal(camera.cam.x >= 100 && camera.cam.x + camera.cam.width <= 420, true)
+assert.equal(camera.cam.y >= 200 && camera.cam.y + camera.cam.height <= 580, true)
+camera.use_room_bounds()
+assert.equal(camera.bounds, undefined)
+camera.room_width = 1200
+camera.room_height = 900
+assert.deepEqual([camera.get_bounds().size.x, camera.get_bounds().size.y], [1200, 900])
+camera.set_position(9000, 9000)
+camera.update_camera()
+assert.deepEqual([camera.cam.x + camera.cam.width, camera.cam.y + camera.cam.height], [1200, 900])
+
+const root = path.resolve(__dirname, '..')
+const source = fs.readFileSync(path.join(root, 'objects/obj_camera_manager/Create_0.gml'), 'utf8')
+const main = makeCamera()
+const second = makeCamera()
+const manager = runSource(source.slice(0, source.indexOf('create_camera("main"')), {
+  ...common,
+  view_visible: [], view_xport: [], view_yport: [], view_wport: [], view_hport: []
+})
+manager.cameras = {
+  main: { obj: main, size: new common.Vec2(320, 380) },
+  player2: { obj: second, size: new common.Vec2(320, 380) }
+}
+manager.viewports = [
+  { id: 0, camera_name: 'main', pos: new common.Vec2(0), size: new common.Vec2(640, 380), active: true, overlay: false },
+  { id: 1, camera_name: 'player2', pos: new common.Vec2(320, 0), size: new common.Vec2(320, 380), active: true, overlay: false }
+]
+assert.equal(manager.camera_set_bounds('missing', 0, 0, 100, 100), false)
+assert.equal(manager.camera_use_room_bounds('missing'), false)
+assert.equal(manager.camera_set_limits_enabled('missing'), false)
+assert.equal(manager.camera_set_bounds('main', 100, 200, 800, 600), true)
+assert.equal(manager.camera_set_bounds('player2', -1000, -800, 600, 400), true)
+manager.camera_set_position('main', 9000, 9000)
+manager.camera_set_position('player2', 9000, 9000)
+manager.set_layout(0, false)
+manager.set_layout(1)
+for (let frame = 0; frame < 30; frame++) {
+  manager.update_layout()
+  main.update_camera()
+  second.update_camera()
+  assert.ok(main.cam.x >= 100 && main.cam.x + main.cam.width <= 900)
+  assert.ok(main.cam.y >= 200 && main.cam.y + main.cam.height <= 800)
+  assert.ok(second.cam.x >= -1000 && second.cam.x + second.cam.width <= -400)
+}
+manager.set_layout(2)
+main.update_camera()
+assert.equal(main.pos.x, 500, 'Horizontal split can make the world view wider than its bounds')
+manager.camera_set_limits_enabled('main', false)
+assert.equal(second.can_outside_room, false, 'Each camera has independent bounds')
+manager.camera_use_room_bounds('main')
+assert.equal(main.bounds, undefined)
+assert.equal(main.can_outside_room, false)
+console.log('Custom bounds, four states, zoom, oversized views, invalid inputs and split integration passed (mocked APIs)')

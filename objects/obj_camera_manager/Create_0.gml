@@ -303,6 +303,42 @@ camera_set_zoom = function(_name, _percent)  {
   return _data.obj.set_zoom_percent(_percent)
 }
 
+camera_adjust_zoom = function(_name, _amount)  {
+  var _data = get_camera(_name)
+  if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
+  return _data.obj.adjust_zoom(_amount)
+}
+
+camera_set_smoothing = function(_name, _x, _y = _x, _zoom = undefined)  {
+  var _data = get_camera(_name)
+  if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
+  return _data.obj.set_smoothing(_x, _y, _zoom)
+}
+
+camera_set_zoom_settings = function(_name, _range, _input_spd = undefined)  {
+  var _data = get_camera(_name)
+  if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
+  return _data.obj.set_zoom_settings(_range, _input_spd)
+}
+
+camera_set_bounds = function(_name, _x, _y, _width, _height)  {
+  var _data = get_camera(_name)
+  if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
+  return _data.obj.set_bounds(_x, _y, _width, _height)
+}
+
+camera_use_room_bounds = function(_name)  {
+  var _data = get_camera(_name)
+  if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
+  return _data.obj.use_room_bounds()
+}
+
+camera_set_limits_enabled = function(_name, _enabled = true)  {
+  var _data = get_camera(_name)
+  if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
+  return _data.obj.set_limits_enabled(_enabled)
+}
+
 destroy_viewport = function (_id) {
   var _index = find_viewport_index(_id)
   if  (_index == -1)  return false
