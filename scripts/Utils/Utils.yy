@@ -1,0 +1,13 @@
+{
+  "$GMScript":"v1",
+  "%Name":"Utils",
+  "isCompatibility":false,
+  "isDnD":false,
+  "name":"Utils",
+  "parent":{
+    "name":"MushCam",
+    "path":"folders/MushCam.yy",
+  },
+  "resourceType":"GMScript",
+  "resourceVersion":"2.0",
+}

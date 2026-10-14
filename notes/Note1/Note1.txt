@@ -1,0 +1,256 @@
+Vamos implementar essas três funções como a próxima camada do seu obj_camera_manager, mantendo a arquitetura que você já começou.
+A regra será:
+- activate_viewport(_id): liga ou desliga a exibição de uma viewport.
+- set_viewport_camera(_id, _camera_name): associa uma câmera registrada à viewport, sem recriar a câmera.
+- set_layout(_layout): calcula a posição e o tamanho das viewports para o layout escolhido.
+Uma distinção importante: ativar uma viewport não é o mesmo que ativar uma câmera. Uma câmera pode continuar existindo e atualizando seu estado mesmo quando não está sendo exibida.
+1. Defina os layouts disponíveis
+No Create do obj_camera_manager, adicione:
+LAYOUT_SINGLE = 0;
+LAYOUT_SPLIT_VERTICAL = 1;
+LAYOUT_SPLIT_HORIZONTAL = 2;
+
+current_layout = LAYOUT_SINGLE;
+
+
+Aqui, SPLIT_VERTICAL significa duas telas lado a lado, separadas por uma divisão vertical. SPLIT_HORIZONTAL significa uma tela em cima da outra.
+2. Crie uma função para localizar viewports
+Antes das três funções, adicione um utilitário para localizar uma viewport pelo ID. O índice no array viewports não precisa ser igual ao ID da viewport do GameMaker.
+
+find_viewport_index = function(_id) {
+    for (var i = 0; i < array_length(viewports); i++) {
+        if (viewports[i].id == _id) {
+            return i;
+        }
+    }
+
+    return -1;
+};
+
+
+
+3. activate_viewport()
+Essa função ativa ou desativa uma viewport já registrada. Ela não cria nem destrói câmeras.
+
+activate_viewport = function(_id, _active = true) {
+    var _index = find_viewport_index(_id);
+
+    if (_index == -1) {
+        show_debug_message(
+            "CameraManager: viewport não registrada."
+        );
+        return false;
+    }
+
+    viewports[_index].active = _active;
+
+    // Recalcula a visibilidade conforme o layout atual
+    set_layout(current_layout);
+
+    return true;
+};
+
+
+
+Exemplos de uso:
+// Ativar a viewport do jogador 2
+activate_viewport(1, true);
+
+// Desativar a viewport do jogador 2
+activate_viewport(1, false);
+
+
+A propriedade active indica que a viewport está habilitada para uso. A visibilidade final depende também do layout selecionado.
+4. set_viewport_camera()
+Essa função troca a câmera associada a uma viewport. A câmera precisa existir no registro cameras.
+
+set_viewport_camera = function(_id, _camera_name) {
+    var _index = find_viewport_index(_id);
+
+    if (_index == -1) {
+        show_debug_message(
+            "CameraManager: viewport não registrada."
+        );
+        return false;
+    }
+
+    var _camera_data = get_camera(_camera_name);
+
+    if (is_undefined(_camera_data)) {
+        return false;
+    }
+
+    // Atualiza a associação lógica
+    viewports[_index].camera_name = _camera_name;
+
+    // Atualiza a associação no GameMaker
+    view_set_camera(_id, _camera_data.cam);
+
+    return true;
+};
+
+
+
+Exemplo:
+// A viewport principal passa a exibir a câmera cinematográfica
+set_viewport_camera(0, "cinematic");
+
+// A viewport 1 volta a exibir a câmera do jogador 2
+set_viewport_camera(1, "player2");
+
+
+Observe que a câmera antiga continua registrada. Você só está mudando qual câmera é exibida naquela viewport.
+5. set_layout()
+Agora vamos implementar os três layouts. Essa versão usa screen_size e organiza até duas viewports nos layouts divididos.
+
+set_layout = function(_layout) {
+    if (
+        _layout != LAYOUT_SINGLE
+        && _layout != LAYOUT_SPLIT_VERTICAL
+        && _layout != LAYOUT_SPLIT_HORIZONTAL
+    ) {
+        show_debug_message(
+            "CameraManager: layout inválido."
+        );
+        return false;
+    }
+
+    current_layout = _layout;
+
+    var _sw = screen_size.x;
+    var _sh = screen_size.y;
+
+    // Esconde todas as viewports inicialmente
+    for (var i = 0; i < array_length(viewports); i++) {
+        view_visible[viewports[i].id] = false;
+    }
+
+    // ------------------------------------------
+    // TELA CHEIA
+    // ------------------------------------------
+    if (_layout == LAYOUT_SINGLE) {
+        var _main_index = find_viewport_index(main_view);
+
+        if (_main_index == -1) {
+            show_debug_message(
+                "CameraManager: viewport principal não registrada."
+            );
+            return false;
+        }
+
+        var _main = viewports[_main_index];
+
+        view_xport[main_view] = 0;
+        view_yport[main_view] = 0;
+        view_wport[main_view] = _sw;
+        view_hport[main_view] = _sh;
+
+        view_visible[main_view] = _main.active;
+
+        return true;
+    }
+
+    // ------------------------------------------
+    // SELECIONAR DUAS VIEWPORTS ATIVAS
+    // ------------------------------------------
+    var _selected = [];
+    var _count = 0;
+
+    for (var i = 0; i < array_length(viewports); i++) {
+        if (viewports[i].active) {
+            array_push(_selected, viewports[i].id);
+            _count++;
+        }
+
+        if (_count >= 2) {
+            break;
+        }
+    }
+
+    if (_count < 2) {
+        show_debug_message(
+            "CameraManager: o split-screen exige duas viewports ativas."
+        );
+        return false;
+    }
+
+    var _id1 = _selected[0];
+    var _id2 = _selected[1];
+
+    // ------------------------------------------
+    // SPLIT VERTICAL: LADO A LADO
+    // ------------------------------------------
+    if (_layout == LAYOUT_SPLIT_VERTICAL) {
+        var _half_w = _sw div 2;
+
+        view_xport[_id1] = 0;
+        view_yport[_id1] = 0;
+        view_wport[_id1] = _half_w;
+        view_hport[_id1] = _sh;
+
+        view_xport[_id2] = _half_w;
+        view_yport[_id2] = 0;
+        view_wport[_id2] = _sw - _half_w;
+        view_hport[_id2] = _sh;
+    }
+
+    // ------------------------------------------
+    // SPLIT HORIZONTAL: EM CIMA E EMBAIXO
+    // ------------------------------------------
+    if (_layout == LAYOUT_SPLIT_HORIZONTAL) {
+        var _half_h = _sh div 2;
+
+        view_xport[_id1] = 0;
+        view_yport[_id1] = 0;
+        view_wport[_id1] = _sw;
+        view_hport[_id1] = _half_h;
+
+        view_xport[_id2] = 0;
+        view_yport[_id2] = _half_h;
+        view_wport[_id2] = _sw;
+        view_hport[_id2] = _sh - _half_h;
+    }
+
+    view_visible[_id1] = true;
+    view_visible[_id2] = true;
+
+    return true;
+};
+
+
+
+Como usar
+
+/// Inicializar em tela cheia
+main_view = 0;
+
+set_layout(LAYOUT_SINGLE);
+
+
+// Quando o jogador 2 entrar
+activate_viewport(1, true);
+set_layout(LAYOUT_SPLIT_VERTICAL);
+
+
+// Para empilhar as telas
+set_layout(LAYOUT_SPLIT_HORIZONTAL);
+
+
+// Quando o jogador 2 sair
+activate_viewport(1, false);
+set_layout(LAYOUT_SINGLE);
+
+
+
+6. Um detalhe sobre o tamanho das câmeras
+set_layout() muda o tamanho da área de exibição, mas não altera automaticamente o tamanho do mundo que cada câmera enxerga. Essa é uma separação intencional: o zoom continua sendo responsabilidade da câmera lógica.
+Porém, como sua tela de referência é 640 × 380, o split vertical produz viewports de 320 × 380, enquanto a tela cheia é 640 × 380. Se você mantiver o tamanho de visão das câmeras fixo, a proporção entre a visão e a viewport poderá mudar. Por isso, posteriormente, vale criar uma política para ajustar o campo de visão quando o layout mudar.
+Próxima etapa que recomendo: implementar camera_activate() e camera_transition(). A primeira escolherá a câmera principal por nome; a segunda fará a transição suave entre os estados de duas câmeras, sem misturar essa lógica com a organização das viewports.
+
+
+
+1. Consolidar a câmera atual com posição, tamanho, zoom, rotação, âncora e tratamento de alvo.
+2. Completar gerenciamento, destruição, troca de câmera e layouts.
+3. Adicionar seguimento avançado: zona morta, antecipação do movimento e enquadramento de grupos.
+4. Implementar transições e efeitos combináveis.
+5. Preparar documentação, exemplos separados e visualização de depuração.
