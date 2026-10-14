@@ -32,6 +32,7 @@ const common = {
   sqrt: Math.sqrt, round: Math.round,
   abs: Math.abs,
   power: Math.pow,
+  sin: Math.sin,
   delta_time: 1000000 / 60,
   lerp: (a, b, t) => a + (b - a) * t,
   point_distance: (x1, y1, x2, y2) => Math.hypot(x2 - x1, y2 - y1),
@@ -47,6 +48,11 @@ const common = {
   variable_instance_get: (target, key) => target[key],
   CameraFocusGroup: function() {
     const source = fs.readFileSync(path.join(root, 'scripts/CameraFocusGroup/CameraFocusGroup.gml'), 'utf8')
+    const body = source.slice(source.indexOf('{') + 1, source.lastIndexOf('}')).replace(/^  /gm, '')
+    return runSource(body, { ...common })
+  },
+  CameraShake: function() {
+    const source = fs.readFileSync(path.join(root, 'scripts/CameraShake/CameraShake.gml'), 'utf8')
     const body = source.slice(source.indexOf('{') + 1, source.lastIndexOf('}')).replace(/^  /gm, '')
     return runSource(body, { ...common })
   },

@@ -423,6 +423,18 @@ camera_reset_look_ahead = function(_name)  {
   return _data.obj.reset_look_ahead()
 }
 
+camera_shake = function(_name, _x = 8, _y = _x, _duration = .35, _frequency = 25, _falloff = 2)  {
+  var _data = get_camera(_name)
+  if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
+  return _data.obj.shake.start(_x, _y, _duration, _frequency, _falloff)
+}
+
+camera_stop_shake = function(_name)  {
+  var _data = get_camera(_name)
+  if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
+  return _data.obj.shake.stop()
+}
+
 destroy_viewport = function (_id) {
   var _index = find_viewport_index(_id)
   if  (_index == -1)  return false

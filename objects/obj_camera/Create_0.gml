@@ -29,6 +29,7 @@ look_ahead_target = noone
 look_ahead_ready = false
 teleport_distance = 256
 focus_group = new CameraFocusGroup()
+shake = new CameraShake()
 group_framing_enabled = true
 group_margin = new Vec2(32)
 group_min_scale = .5
@@ -470,7 +471,15 @@ limit_position = function(_position = pos)  {
 }
 
 apply_camera = function()  {
-  render_pos = new Vec2(pos.x - size_zoom.x * .5, pos.y - size_zoom.y * .5)
+  var _center = new Vec2(pos.x + shake.offset.x, pos.y + shake.offset.y)
+  var _half = new Vec2(size_zoom.x * .5, size_zoom.y * .5)
+  if  (mode == CAM_MODE.FOLLOW_GROUP && group_framing_enabled && group_fits && (shake.offset.x != 0 || shake.offset.y != 0))  {
+    var _bounds = focus_group.bounds
+    _center.x = clamp(_center.x, _bounds.pos.x + _bounds.size.x - _half.x, _bounds.pos.x + _half.x)
+    _center.y = clamp(_center.y, _bounds.pos.y + _bounds.size.y - _half.y, _bounds.pos.y + _half.y)
+  }
+  limit_position(_center)
+  render_pos = new Vec2(_center.x - _half.x, _center.y - _half.y)
   camera_set_view_size(cam, size_zoom.x, size_zoom.y)
   camera_set_view_pos(cam, render_pos.x, render_pos.y)
 }
@@ -483,5 +492,6 @@ update_camera = function()  {
   limit_position()
   if  (!is_following())  follow_pos = new Vec2(pos.x, pos.y)
   update_group_visibility()
+  shake.update(_seconds)
   apply_camera()
 }

@@ -230,6 +230,22 @@ click('Remover fonte do grupo')
 click('Limpar grupo')
 assert.equal(manager.cameras.main.obj.mode, common.CAM_MODE.FIXED)
 assert.equal(manager.cameras.main.obj.focus_group.count, 0)
+panel.shake_amplitude_x = 12
+panel.shake_amplitude_y = 6
+panel.shake_duration = .5
+click('Iniciar screenshake')
+assert.equal(manager.cameras.main.obj.shake.active, true)
+manager.cameras.main.obj.update_camera()
+panel.update()
+assert.equal(panel.camera_shake_active, true)
+assert.ok(panel.camera_shake_progress > 0)
+assert.ok(Math.abs(panel.camera_shake_offset.x) <= 12 && Math.abs(panel.camera_shake_offset.y) <= 6)
+panel.shake_duration = 0
+click('Iniciar screenshake', false)
+assert.equal(manager.cameras.main.obj.shake.active, true)
+click('Parar screenshake')
+assert.equal(manager.cameras.main.obj.shake.active, false)
+assert.deepEqual([manager.cameras.main.obj.shake.offset.x, manager.cameras.main.obj.shake.offset.y], [0, 0])
 panel.camera_name = 'test'
 click('Criar camera')
 panel.viewport_id = 3

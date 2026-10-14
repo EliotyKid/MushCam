@@ -64,6 +64,15 @@ function CameraDebug(_manager) constructor {
   camera_group_bounds = undefined
   camera_group_fits = false
   camera_group_max_reached = false
+  shake_amplitude_x = 8
+  shake_amplitude_y = 8
+  shake_duration = .35
+  shake_frequency = 25
+  shake_falloff = 2
+  camera_shake_active = false
+  camera_shake_progress = 0
+  camera_shake_offset = new Vec2(0)
+  camera_shake_applied = new Vec2(0)
   screen_width = 640
   screen_height = 380
   viewport_id = 0
@@ -153,6 +162,10 @@ function CameraDebug(_manager) constructor {
       camera_group_bounds = undefined
       camera_group_fits = false
       camera_group_max_reached = false
+      camera_shake_active = false
+      camera_shake_progress = 0
+      camera_shake_offset = undefined
+      camera_shake_applied = undefined
       return undefined
     }
     var _obj = _data.obj
@@ -186,6 +199,13 @@ function CameraDebug(_manager) constructor {
     camera_group_bounds = _obj.focus_group.bounds
     camera_group_fits = _obj.group_fits
     camera_group_max_reached = _obj.group_max_reached
+    camera_shake_active = _obj.shake.active
+    camera_shake_progress = _obj.shake.progress
+    camera_shake_offset = new Vec2(_obj.shake.offset.x, _obj.shake.offset.y)
+    camera_shake_applied = new Vec2(
+      _obj.render_pos.x + _obj.size_zoom.x * .5 - _obj.pos.x,
+      _obj.render_pos.y + _obj.size_zoom.y * .5 - _obj.pos.y
+    )
   }
 
   load_camera = function()  {
@@ -224,6 +244,11 @@ function CameraDebug(_manager) constructor {
     group_min_scale = _obj.group_min_scale
     group_max_scale = _obj.group_max_scale
     group_framing_enabled = _obj.group_framing_enabled
+    shake_amplitude_x = _obj.shake.amplitude.x
+    shake_amplitude_y = _obj.shake.amplitude.y
+    shake_duration = _obj.shake.duration
+    shake_frequency = _obj.shake.frequency
+    shake_falloff = _obj.shake.falloff
     var _bounds = _obj.get_bounds()
     bounds_x = _bounds.pos.x
     bounds_y = _bounds.pos.y
@@ -349,7 +374,7 @@ function CameraDebug(_manager) constructor {
   dbg_watch(ref_create(self, "camera_group_count"), "Pontos e alvos validos")
   dbg_watch(ref_create(self, "camera_group_center"), "Centro da regiao do grupo")
   dbg_watch(ref_create(self, "camera_group_bounds"), "Regiao que contem o grupo")
-  dbg_watch(ref_create(self, "camera_group_fits"), "Todos visiveis com margens")
+  dbg_watch(ref_create(self, "camera_group_fits"), "Enquadramento base inclui fontes e margens")
   dbg_watch(ref_create(self, "camera_group_max_reached"), "Limite de afastamento atingido")
   dbg_button("Grupo jogadores 1 e 2", function()  {
     var _player1 = instance_find(obj_player, 0)
@@ -516,6 +541,24 @@ function CameraDebug(_manager) constructor {
   dbg_button("Zerar estimativa de movimento", function()  {
     report("camera_reset_look_ahead", manager.camera_reset_look_ahead(camera_name))
   })
+
+  dbg_section("Screenshake")
+  dbg_watch(ref_create(self, "camera_shake_active"), "Shake ativo")
+  dbg_watch(ref_create(self, "camera_shake_progress"), "Progresso do shake")
+  dbg_watch(ref_create(self, "camera_shake_offset"), "Deslocamento gerado no mundo")
+  dbg_watch(ref_create(self, "camera_shake_applied"), "Deslocamento aplicado apos limites")
+  dbg_text_input(ref_create(self, "shake_amplitude_x"), "Amplitude X em pixels do mundo", "f")
+  dbg_text_input(ref_create(self, "shake_amplitude_y"), "Amplitude Y em pixels do mundo", "f")
+  dbg_text_input(ref_create(self, "shake_duration"), "Duracao em segundos", "f")
+  dbg_text_input(ref_create(self, "shake_frequency"), "Frequencia por segundo", "f")
+  dbg_text_input(ref_create(self, "shake_falloff"), "Expoente da reducao (zero constante)", "f")
+  dbg_button("Iniciar screenshake", function()  {
+    report("camera_shake", manager.camera_shake(camera_name, shake_amplitude_x, shake_amplitude_y, shake_duration, shake_frequency, shake_falloff))
+  })
+  dbg_button("Parar screenshake", function()  {
+    report("camera_stop_shake", manager.camera_stop_shake(camera_name))
+  })
+  dbg_text("Um novo shake substitui o anterior. Nao desloca as viewports")
 
   dbg_section("Teste de FPS")
   dbg_watch(ref_create(self, "current_fps"), "FPS configurado")
