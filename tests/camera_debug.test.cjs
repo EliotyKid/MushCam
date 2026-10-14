@@ -13,6 +13,9 @@ const watches = new Map()
 const views = new Set()
 let temporary
 let configuredFps = 60
+let drawColor = 99
+let drawAlpha = .4
+const rectangles = []
 const manager = runSource(managerSource.slice(0, managerSource.indexOf('create_camera("main"')), {
   ...common,
   variable_struct_get_names: Object.keys,
@@ -43,6 +46,14 @@ const panel = {
   gamespeed_fps: 0,
   game_get_speed: () => configuredFps,
   game_set_speed: value => { configuredFps = value },
+  view_current: 0,
+  view_visible: manager.view_visible,
+  c_lime: 123,
+  draw_get_color: () => drawColor,
+  draw_get_alpha: () => drawAlpha,
+  draw_set_color: value => { drawColor = value },
+  draw_set_alpha: value => { drawAlpha = value },
+  draw_rectangle: (...args) => rectangles.push(args),
   obj_player: 2, obj_player2: 3,
   is_struct: value => value !== null && typeof value === 'object',
   variable_struct_get_names: Object.keys,
@@ -112,6 +123,25 @@ assert.equal(manager.cameras.main.obj.can_outside_room, false)
 assert.deepEqual([manager.cameras.main.obj.spd.x, manager.cameras.main.obj.spd.y], [.2, .04])
 assert.equal(manager.cameras.main.obj.zoom_spd, .07)
 assert.equal(manager.cameras.main.obj.zoom_input_spd, 2)
+panel.dead_zone_width = 120
+panel.dead_zone_height = 80
+panel.dead_zone_enabled = true
+click('Aplicar dead zone')
+panel.update()
+assert.equal(panel.camera_dead_zone_enabled, true)
+panel.draw()
+assert.equal(rectangles.length, 1)
+const zone = manager.cameras.main.obj.get_dead_zone()
+assert.deepEqual(rectangles[0], [zone.pos.x, zone.pos.y, zone.pos.x + zone.size.x, zone.pos.y + zone.size.y, true])
+assert.deepEqual([drawColor, drawAlpha], [99, .4], 'Debug drawing must restore drawing state')
+panel.show_dead_zone = false
+panel.draw()
+assert.equal(rectangles.length, 1)
+panel.dead_zone_width = -1
+click('Aplicar dead zone', false)
+panel.dead_zone_enabled = false
+click('Aplicar ativacao da dead zone')
+assert.equal(manager.cameras.main.obj.dead_zone_enabled, false)
 panel.bounds_x = 100
 panel.bounds_y = 80
 panel.bounds_width = 500

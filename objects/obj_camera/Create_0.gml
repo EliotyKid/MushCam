@@ -14,6 +14,8 @@ can_outside_room = true
 bounds = undefined
 object_to_follow = noone
 arrival_distance = .5
+dead_zone_enabled = false
+dead_zone_size = new Vec2(120, 80)
 
 size = new Vec2(
   camera_get_view_width(cam), 
@@ -149,6 +151,36 @@ set_limits_enabled = function(_enabled = true)  {
   return true
 }
 
+set_dead_zone = function(_width, _height, _enabled = true)  {
+  if  (!is_real(_width) || !is_real(_height))  return false
+  if  (is_nan(_width) || is_nan(_height) || is_infinity(_width) || is_infinity(_height))  return false
+  if  (_width < 0 || _height < 0)  return false
+  dead_zone_size = new Vec2(_width, _height)
+  dead_zone_enabled = _enabled
+  return true
+}
+
+set_dead_zone_enabled = function(_enabled = true)  {
+  dead_zone_enabled = _enabled
+  return true
+}
+
+get_dead_zone = function()  {
+  var _size = new Vec2(min(dead_zone_size.x, size_zoom.x), min(dead_zone_size.y, size_zoom.y))
+  return {
+    pos: new Vec2(pos.x - target_offset.x - _size.x * .5, pos.y - target_offset.y - _size.y * .5),
+    size: _size
+  }
+}
+
+apply_dead_zone = function()  {
+  if  (!dead_zone_enabled || mode != CAM_MODE.FOLLOW_OBJECT)  return undefined
+  var _half = new Vec2(min(dead_zone_size.x, size_zoom.x) * .5, min(dead_zone_size.y, size_zoom.y) * .5)
+  var _distance = new Vec2(desired_pos.x - pos.x, desired_pos.y - pos.y)
+  desired_pos.x -= clamp(_distance.x, -_half.x, _half.x)
+  desired_pos.y -= clamp(_distance.y, -_half.y, _half.y)
+}
+
 update_zoom = function(_seconds = delta_time / 1000000)  {
   var _factor = smoothing_factor(zoom_spd, _seconds)
   zoom_percent = lerp(zoom_percent, new_zoom_percent, _factor)
@@ -185,6 +217,7 @@ update_target = function()  {
 
 update_position = function(_seconds = delta_time / 1000000)  {
   if  (!update_target())  return undefined
+  apply_dead_zone()
   limit_position(desired_pos)
   var _factor_x = smoothing_factor(spd.x, _seconds)
   var _factor_y = smoothing_factor(spd.y, _seconds)

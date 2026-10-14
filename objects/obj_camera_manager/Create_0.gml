@@ -339,6 +339,18 @@ camera_set_limits_enabled = function(_name, _enabled = true)  {
   return _data.obj.set_limits_enabled(_enabled)
 }
 
+camera_set_dead_zone = function(_name, _width, _height, _enabled = true)  {
+  var _data = get_camera(_name)
+  if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
+  return _data.obj.set_dead_zone(_width, _height, _enabled)
+}
+
+camera_set_dead_zone_enabled = function(_name, _enabled = true)  {
+  var _data = get_camera(_name)
+  if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
+  return _data.obj.set_dead_zone_enabled(_enabled)
+}
+
 destroy_viewport = function (_id) {
   var _index = find_viewport_index(_id)
   if  (_index == -1)  return false

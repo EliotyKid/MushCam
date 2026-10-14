@@ -34,6 +34,12 @@ function CameraDebug(_manager) constructor {
   camera_bounds = undefined
   camera_limits_enabled = false
   camera_uses_room = true
+  dead_zone_width = 120
+  dead_zone_height = 80
+  dead_zone_enabled = false
+  show_dead_zone = true
+  camera_dead_zone = undefined
+  camera_dead_zone_enabled = false
   screen_width = 640
   screen_height = 380
   viewport_id = 0
@@ -109,6 +115,8 @@ function CameraDebug(_manager) constructor {
       camera_bounds = undefined
       camera_limits_enabled = false
       camera_uses_room = false
+      camera_dead_zone = undefined
+      camera_dead_zone_enabled = false
       return undefined
     }
     var _obj = _data.obj
@@ -129,6 +137,8 @@ function CameraDebug(_manager) constructor {
     camera_bounds = _obj.get_bounds()
     camera_limits_enabled = !_obj.can_outside_room
     camera_uses_room = is_undefined(_obj.bounds)
+    camera_dead_zone = _obj.get_dead_zone()
+    camera_dead_zone_enabled = _obj.dead_zone_enabled
   }
 
   load_camera = function()  {
@@ -151,6 +161,9 @@ function CameraDebug(_manager) constructor {
     zoom_input_spd = _obj.zoom_input_spd
     arrival_distance = _obj.arrival_distance
     can_outside_room = _obj.can_outside_room
+    dead_zone_width = _obj.dead_zone_size.x
+    dead_zone_height = _obj.dead_zone_size.y
+    dead_zone_enabled = _obj.dead_zone_enabled
     var _bounds = _obj.get_bounds()
     bounds_x = _bounds.pos.x
     bounds_y = _bounds.pos.y
@@ -197,6 +210,25 @@ function CameraDebug(_manager) constructor {
     if  (_exists)  instance_destroy(temporary_target)
     temporary_target = noone
     report("Destruir alvo temporario", _exists)
+  }
+
+  draw = function()  {
+    if  (!show_dead_zone)  return undefined
+    for(var i=0; i<array_length(manager.viewports); i++)  {
+      var _vp = manager.viewports[i]
+      if  (_vp.id != view_current || !view_visible[_vp.id])  continue
+      var _data = manager.get_camera(_vp.camera_name)
+      if  (is_undefined(_data) || !instance_exists(_data.obj))  continue
+      if  (!_data.obj.dead_zone_enabled)  continue
+      var _zone = _data.obj.get_dead_zone()
+      var _color = draw_get_color()
+      var _alpha = draw_get_alpha()
+      draw_set_color(c_lime)
+      draw_set_alpha(1)
+      draw_rectangle(_zone.pos.x, _zone.pos.y, _zone.pos.x + _zone.size.x, _zone.pos.y + _zone.size.y, true)
+      draw_set_color(_color)
+      draw_set_alpha(_alpha)
+    }
   }
 
   destroy = function()  {
@@ -326,6 +358,21 @@ function CameraDebug(_manager) constructor {
   dbg_button("Aplicar ativacao dos limites", function()  {
     report("camera_set_limits_enabled", manager.camera_set_limits_enabled(camera_name, !can_outside_room))
   })
+
+  dbg_section("Dead zone")
+  dbg_watch(ref_create(self, "camera_dead_zone"), "Retangulo efetivo no mundo")
+  dbg_watch(ref_create(self, "camera_dead_zone_enabled"), "Dead zone ativa")
+  dbg_text_input(ref_create(self, "dead_zone_width"), "Dead zone largura", "f")
+  dbg_text_input(ref_create(self, "dead_zone_height"), "Dead zone altura", "f")
+  dbg_checkbox(ref_create(self, "dead_zone_enabled"), "Ativar dead zone")
+  dbg_button("Aplicar dead zone", function()  {
+    report("camera_set_dead_zone", manager.camera_set_dead_zone(camera_name, dead_zone_width, dead_zone_height, dead_zone_enabled))
+  })
+  dbg_button("Aplicar ativacao da dead zone", function()  {
+    report("camera_set_dead_zone_enabled", manager.camera_set_dead_zone_enabled(camera_name, dead_zone_enabled))
+  })
+  dbg_checkbox(ref_create(self, "show_dead_zone"), "Mostrar contorno nas viewports")
+  dbg_text("Atua em FollowObject. Zero em um eixo segue normalmente nesse eixo")
 
   dbg_section("Teste de FPS")
   dbg_watch(ref_create(self, "current_fps"), "FPS configurado")
