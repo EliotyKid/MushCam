@@ -3,7 +3,8 @@ debug_enabled = true
 debug_panel = undefined
 cameras = {}
 viewports = []
-screen_size = new Vec2(640, 380)
+screen_size = new Vec2(640, 360)
+window_set_size(1024,576)
 
 enum LAYOUT {
   SINGLE,
@@ -35,6 +36,63 @@ find_viewport_index = function(_id) {
 get_camera = function(_name)  {
   if  (!is_string(_name) || !variable_struct_exists(cameras, _name))  return undefined
   return cameras[$ _name]
+}
+
+update_camera_selection = function()  {
+  var _available = []
+  var _names = variable_struct_get_names(cameras)
+  for(var i=0; i<array_length(_names); i++)  {
+    var _data = get_camera(_names[i])
+    if  (instance_exists(_data.obj))  array_push(_available, _names[i])
+  }
+  var _layout_changed = false
+  var _changed = false
+  for(var i=0; i<array_length(viewports); i++)  {
+    var _vp = viewports[i]
+    var _selected = _vp.selector.select(_available, _vp.camera_name)
+    if  (_selected == _vp.camera_name)  continue
+    if  ((_selected == "") != (_vp.camera_name == ""))  _layout_changed = true
+    _vp.camera_name = _selected
+    var _data = get_camera(_selected)
+    view_set_camera(_vp.id, is_undefined(_data) ? -1 : _data.cam)
+    _changed = true
+  }
+  if  (_layout_changed)  {
+    set_layout(current_layout, false)
+  }else if  (_changed)  {
+    fit_visible_cameras()
+  }
+  return _changed
+}
+
+viewport_add_camera = function(_id, _name, _priority = 0, _enabled = true)  {
+  var _index = find_viewport_index(_id)
+  var _data = get_camera(_name)
+  if  (_index == -1 || is_undefined(_data) || !instance_exists(_data.obj))  return false
+  if  (!viewports[_index].selector.add(_name, _priority, _enabled))  return false
+  update_camera_selection()
+  return true
+}
+
+viewport_remove_camera = function(_id, _name)  {
+  var _index = find_viewport_index(_id)
+  if  (_index == -1 || !viewports[_index].selector.remove(_name))  return false
+  update_camera_selection()
+  return true
+}
+
+viewport_set_camera_priority = function(_id, _name, _priority)  {
+  var _index = find_viewport_index(_id)
+  if  (_index == -1 || !viewports[_index].selector.set_priority(_name, _priority))  return false
+  update_camera_selection()
+  return true
+}
+
+viewport_set_camera_enabled = function(_id, _name, _enabled = true)  {
+  var _index = find_viewport_index(_id)
+  if  (_index == -1 || !viewports[_index].selector.set_enabled(_name, _enabled))  return false
+  update_camera_selection()
+  return true
 }
 
 create_camera = function(_name, _size = screen_size)  {
@@ -210,22 +268,24 @@ create_viewport = function(
   _id, 
   _camera, 
   _pos = new Vec2(0),
-  _size = new Vec2(640, 380),
+  _size = new Vec2(screen_size.x, screen_size.y),
   _active = false,
   _overlay = false
   )  {
   if  (_id < 0 || _id > 7 || _id != floor(_id) || find_viewport_index(_id) != -1)  return false
   if  (_size.x <= 0 || _size.y <= 0)  return false
   var _data = get_camera(_camera)
-  if  (is_undefined(_data)) return false
+  if  (is_undefined(_data) || !instance_exists(_data.obj)) return false
   var _vp = {
     id: _id,
     camera_name: _camera,
+    selector: new CameraSelector(),
     pos: new Vec2(_pos.x, _pos.y),
     size: new Vec2(_size.x, _size.y),
     active: _active,
     overlay: _overlay
   }
+  _vp.selector.add(_camera)
   array_push(viewports, _vp)
   view_xport[_id] = _pos.x
   view_yport[_id] = _pos.y
@@ -247,7 +307,8 @@ activate_viewport = viewport_set_active
 set_viewport_camera = function(_id, _name)  {
   var _index = find_viewport_index(_id)
   var _data = get_camera(_name)
-  if  (_index == -1 || is_undefined(_data)) return false
+  if  (_index == -1 || is_undefined(_data) || !instance_exists(_data.obj)) return false
+  viewports[_index].selector.replace(_name)
   viewports[_index].camera_name = _name
   view_set_camera(_id, _data.cam)
   return set_layout(current_layout, false)
@@ -449,16 +510,13 @@ destroy_camera = function (_name) {
   if  (is_undefined(_data))  return false
   for(var i=0; i<array_length(viewports); i++)  {
     var _vp = viewports[i]
-    if  (_vp.camera_name == _name) {
-      _vp.camera_name = ""
-      view_visible[_vp.id] = false
-      view_set_camera(_vp.id, -1)
-    }
+    _vp.selector.remove(_name)
   }
+  variable_struct_remove(cameras, _name)
+  update_camera_selection()
   if  (instance_exists(_data.obj)) instance_destroy(_data.obj)
   camera_destroy(_data.cam)
-  variable_struct_remove(cameras, _name)
-  return set_layout(current_layout, false)
+  return true
 }
 
 set_screen_size = function (_width, _heigth)  {
@@ -467,12 +525,12 @@ set_screen_size = function (_width, _heigth)  {
   return set_layout(current_layout, false)
 }
 
-create_camera("main", new Vec2(320, 380))
-create_camera("player2", new Vec2(320, 380))
-create_camera("minimap", new Vec2(640, 380))
-create_viewport(0, "main", new Vec2(0), new Vec2(320, 380), true)
-create_viewport(1, "player2", new Vec2(320, 0), new Vec2(320, 380), true)
-var _s = new Vec2(640 / 3, 380 / 3)
-create_viewport(2, "minimap", new Vec2(320 - _s.x * 0.5, 10), _s, true, true)
+create_camera("main", new Vec2(screen_size.x*.5, screen_size.y))
+create_camera("player2", new Vec2(screen_size.x*.5, screen_size.y))
+create_camera("minimap", new Vec2(screen_size.x, screen_size.y))
+create_viewport(0, "main", new Vec2(0), new Vec2(screen_size.x*.5, screen_size.y), true)
+create_viewport(1, "player2", new Vec2(screen_size.x*.5, 0), new Vec2(screen_size.x*.5, screen_size.y), true)
+var _s = new Vec2(screen_size.x / 3, screen_size.y / 3)
+create_viewport(2, "minimap", new Vec2(screen_size.x*.5 - _s.x * 0.5, 10), _s, true, true)
 
 if  (debug_enabled)  debug_panel = new CameraDebug(id)

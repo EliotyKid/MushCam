@@ -56,6 +56,12 @@ const common = {
     const body = source.slice(source.indexOf('{') + 1, source.lastIndexOf('}')).replace(/^  /gm, '')
     return runSource(body, { ...common })
   },
+  CameraSelector: function() {
+    const source = fs.readFileSync(path.join(root, 'scripts/CameraSelector/CameraSelector.gml'), 'utf8')
+    const body = source.slice(source.indexOf('{') + 1, source.lastIndexOf('}')).replace(/^  /gm, '')
+    return runSource(body, { ...common })
+  },
+  variable_struct_get_names: Object.keys,
   is_string: v => typeof v === 'string',
   is_real: v => typeof v === 'number',
   is_nan: Number.isNaN,

@@ -82,6 +82,18 @@ function CameraDebug(_manager) constructor {
   viewport_height = 380
   viewport_active = true
   viewport_overlay = false
+  candidate_priority = 10
+  candidate_enabled = true
+  viewport_camera = ""
+  viewport_candidates = []
+  candidate_registered = false
+  candidate_current_priority = undefined
+  candidate_current_enabled = false
+  priority_test_name = ""
+  priority_test_active = false
+  priority_test_camera = ""
+  priority_test_binding = false
+  priority_test_visible = false
   temporary_target = noone
   last_action = "Pronto"
   last_result = true
@@ -129,6 +141,18 @@ function CameraDebug(_manager) constructor {
     layout_progress = manager.layout_progress
     viewport_index = manager.find_viewport_index(viewport_id)
     viewport_data = viewport_index == -1 ? undefined : manager.viewports[viewport_index]
+    viewport_camera = is_undefined(viewport_data) ? "" : viewport_data.camera_name
+    viewport_candidates = is_undefined(viewport_data) ? [] : viewport_data.selector.candidates
+    var _candidate_index = is_undefined(viewport_data) ? -1 : viewport_data.selector.find(camera_name)
+    candidate_registered = _candidate_index != -1
+    candidate_current_priority = candidate_registered ? viewport_candidates[_candidate_index].priority : undefined
+    candidate_current_enabled = candidate_registered && viewport_candidates[_candidate_index].enabled
+    var _test_index = manager.find_viewport_index(manager.main_view)
+    priority_test_camera = _test_index == -1 ? "" : manager.viewports[_test_index].camera_name
+    priority_test_active = priority_test_name != "" && priority_test_camera == priority_test_name
+    var _test_data = manager.get_camera(priority_test_camera)
+    priority_test_binding = _test_index != -1 && !is_undefined(_test_data) && view_get_camera(manager.main_view) == _test_data.cam
+    priority_test_visible = _test_index != -1 && view_visible[manager.main_view]
     var _data = get_selected()
     camera_exists = !is_undefined(_data)
     if  (!camera_exists)  {
@@ -316,10 +340,84 @@ function CameraDebug(_manager) constructor {
     }
   }
 
+  load_candidate = function()  {
+    update()
+    if  (candidate_registered)  {
+      candidate_priority = candidate_current_priority
+      candidate_enabled = candidate_current_enabled
+    }
+    report("Carregar candidata selecionada", candidate_registered)
+  }
+
+  start_priority_test = function()  {
+    var _index = manager.find_viewport_index(manager.main_view)
+    if  (_index == -1 || !manager.viewports[_index].active)  {
+      report("Teste de prioridade: viewport principal ausente ou desativada", false)
+      return undefined
+    }
+    var _vp = manager.viewports[_index]
+    var _base = manager.get_camera(_vp.camera_name)
+    if  (is_undefined(_base) || !instance_exists(_base.obj))  {
+      report("Teste de prioridade: nenhuma camera base disponivel", false)
+      return undefined
+    }
+    var _priority = 0
+    for(var i=0; i<array_length(_vp.selector.candidates); i++)  {
+      _priority = max(_priority, _vp.selector.candidates[i].priority)
+    }
+    _priority += 1
+    if  (!_vp.selector.valid_priority(_priority))  {
+      report("Teste de prioridade: prioridade fora do intervalo", false)
+      return undefined
+    }
+    var _data = manager.get_camera(priority_test_name)
+    if  (!is_undefined(_data) && !instance_exists(_data.obj))  {
+      manager.destroy_camera(priority_test_name)
+      _data = undefined
+    }
+    if  (is_undefined(_data))  {
+      priority_test_name = "debug_priority"
+      var _suffix = 0
+      while (!is_undefined(manager.get_camera(priority_test_name)))  {
+        _suffix += 1
+        priority_test_name = "debug_priority_" + string(_suffix)
+      }
+      _data = manager.create_camera(priority_test_name, _base.size)
+      if  (!is_struct(_data))  {
+        priority_test_name = ""
+        report("Teste de prioridade: nao foi possivel criar a camera", false)
+        return undefined
+      }
+      manager.camera_set_position(priority_test_name, _base.obj.pos.x + max(160, _base.obj.size_zoom.x * .65), _base.obj.pos.y)
+    }
+    var _result = manager.viewport_add_camera(manager.main_view, priority_test_name, _priority, true)
+    viewport_id = manager.main_view
+    camera_name = priority_test_name
+    update()
+    report("Teste de prioridade: camera de teste assume a tela principal", _result && priority_test_active && priority_test_binding && priority_test_visible)
+  }
+
+  stop_priority_test = function()  {
+    var _result = priority_test_name != "" && manager.viewport_set_camera_enabled(manager.main_view, priority_test_name, false)
+    viewport_id = manager.main_view
+    update()
+    if  (priority_test_camera != "")  camera_name = priority_test_camera
+    report("Teste de prioridade: retorno automatico", _result && !priority_test_active && priority_test_camera != "" && priority_test_binding)
+    update()
+  }
+
+  clear_priority_test = function()  {
+    var _result = priority_test_name != "" && manager.destroy_camera(priority_test_name)
+    priority_test_name = ""
+    update()
+    report("Teste de prioridade: camera temporaria removida", _result)
+  }
+
   destroy = function()  {
     if  (fps_changed)  game_set_speed(original_fps, gamespeed_fps)
     if  (!is_undefined(debug_view))  dbg_view_delete(debug_view)
     if  (instance_exists(temporary_target))  instance_destroy(temporary_target)
+    if  (priority_test_name != "")  manager.destroy_camera(priority_test_name)
     debug_view = undefined
     temporary_target = noone
   }
@@ -333,6 +431,17 @@ function CameraDebug(_manager) constructor {
   dbg_watch(ref_create(self, "camera_exists"), "Camera existe")
   dbg_watch(ref_create(self, "last_action"), "Ultima chamada")
   dbg_watch(ref_create(self, "last_result"), "Sucesso")
+
+  dbg_section("Teste rapido de prioridade")
+  dbg_text("1. Iniciar: muda a tela principal para uma camera deslocada para a direita")
+  dbg_text("2. Voltar: desabilita a candidata e retorna automaticamente")
+  dbg_watch(ref_create(self, "priority_test_camera"), "Camera na tela principal")
+  dbg_watch(ref_create(self, "priority_test_active"), "Camera de teste assumiu")
+  dbg_watch(ref_create(self, "priority_test_binding"), "Camera associada corretamente")
+  dbg_watch(ref_create(self, "priority_test_visible"), "Tela principal visivel")
+  dbg_button("Iniciar teste de prioridade", start_priority_test)
+  dbg_button("Voltar para camera anterior", stop_priority_test)
+  dbg_button("Remover camera de teste", clear_priority_test)
 
   dbg_section("Infos")
   dbg_watch(ref_create(self, "camera_pos"), "Centro base")
@@ -627,15 +736,45 @@ function CameraDebug(_manager) constructor {
   dbg_button("Ativar via alias", function()  {
     report("activate_viewport", manager.activate_viewport(viewport_id))
   })
-  dbg_button("Associar camera selecionada", function()  {
+  dbg_text("Associacao exclusiva remove as outras candidatas desta viewport")
+  dbg_button("Usar somente esta camera", function()  {
     report("set_viewport_camera", manager.set_viewport_camera(viewport_id, camera_name))
   })
-  dbg_button("Ativar camera na main", function()  {
+  dbg_button("Usar somente esta camera na main", function()  {
     report("camera_activate", manager.camera_activate(camera_name))
   })
   dbg_button("Destruir viewport", function()  {
     report("destroy_viewport", manager.destroy_viewport(viewport_id))
   })
+
+  dbg_section("Prioridades por viewport")
+  dbg_text("Usa o Camera e o Viewport ID selecionados acima")
+  dbg_watch(ref_create(self, "viewport_camera"), "Camera exibida")
+  dbg_watch(ref_create(self, "viewport_candidates"), "Candidatas, prioridades e ativacao")
+  dbg_watch(ref_create(self, "candidate_registered"), "Camera selecionada registrada como candidata")
+  dbg_watch(ref_create(self, "candidate_current_priority"), "Prioridade registrada da camera selecionada")
+  dbg_watch(ref_create(self, "candidate_current_enabled"), "Ativacao registrada da camera selecionada")
+  dbg_button("Carregar candidata selecionada", load_candidate)
+  dbg_text_input(ref_create(self, "candidate_priority"), "Nova prioridade (aplicar pelo botao)", "f")
+  dbg_checkbox(ref_create(self, "candidate_enabled"), "Nova ativacao (aplicar pelo botao)")
+  dbg_button("Registrar candidata", function()  {
+    report("viewport_add_camera", manager.viewport_add_camera(viewport_id, camera_name, candidate_priority, candidate_enabled))
+    update()
+  })
+  dbg_button("Aplicar prioridade da candidata", function()  {
+    report("viewport_set_camera_priority", manager.viewport_set_camera_priority(viewport_id, camera_name, candidate_priority))
+    update()
+  })
+  dbg_button("Aplicar ativacao da candidata", function()  {
+    report("viewport_set_camera_enabled", manager.viewport_set_camera_enabled(viewport_id, camera_name, candidate_enabled))
+    update()
+  })
+  dbg_button("Remover candidata", function()  {
+    report("viewport_remove_camera", manager.viewport_remove_camera(viewport_id, camera_name))
+    update()
+  })
+  dbg_text("Maior prioridade habilitada assume. Empate conserva a camera atual")
+  dbg_text("Carregar candidata copia sua prioridade e ativacao para os parametros")
 
   dbg_section("Criar e destruir cameras")
   dbg_text("Para criar outra camera, escreva um nome novo no campo Camera")
