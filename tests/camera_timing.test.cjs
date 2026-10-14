@@ -106,6 +106,11 @@ for (const fps of [30, 60, 120, 144]) {
     player.is_keyboard_used_debug_overlay = () => true
     step(player)
     assert.deepEqual([player.x, player.y, followed.new_zoom_percent], before)
+    player.is_keyboard_used_debug_overlay = () => false
+    assert.equal(manager.camera_follow_group(name, [{ instance: player }, new common.Vec2(100, 100)]), true)
+    for (let i = 0; i < fps / 2; i++) step(player)
+    close(player.x, 180, `${object} group movement at ${fps} FPS`)
+    close(followed.new_zoom_percent, 1, `${object} group zoom input at ${fps} FPS`)
     assert.equal(manager.camera_set_smoothing('missing', .1), false)
     assert.equal(manager.camera_set_zoom_settings('missing', .5), false)
     assert.equal(manager.camera_adjust_zoom('missing', .1), false)

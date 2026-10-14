@@ -35,6 +35,7 @@
     {"id":{"name":"oGaem","path":"objects/oGaem/oGaem.yy",},},
     {"id":{"name":"rm_main","path":"rooms/rm_main/rm_main.yy",},},
     {"id":{"name":"CameraDebug","path":"scripts/CameraDebug/CameraDebug.yy",},},
+    {"id":{"name":"CameraFocusGroup","path":"scripts/CameraFocusGroup/CameraFocusGroup.yy",},},
     {"id":{"name":"CameraFunctions","path":"scripts/CameraFunctions/CameraFunctions.yy",},},
     {"id":{"name":"ConfigFunctions","path":"scripts/ConfigFunctions/ConfigFunctions.yy",},},
     {"id":{"name":"GameConfig","path":"scripts/GameConfig/GameConfig.yy",},},

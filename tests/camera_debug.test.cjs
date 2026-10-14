@@ -142,6 +142,21 @@ click('Aplicar dead zone', false)
 panel.dead_zone_enabled = false
 click('Aplicar ativacao da dead zone')
 assert.equal(manager.cameras.main.obj.dead_zone_enabled, false)
+panel.look_ahead_enabled = true
+panel.look_ahead_time_x = .3
+panel.look_ahead_time_y = 0
+click('Aplicar look ahead')
+assert.deepEqual([manager.cameras.main.obj.look_ahead_time.x, manager.cameras.main.obj.look_ahead_time.y], [.3, 0])
+panel.look_ahead_spd_x = .2
+click('Aplicar suavizacao do look ahead')
+assert.equal(manager.cameras.main.obj.look_ahead_spd.x, .2)
+panel.teleport_distance = 200
+click('Aplicar distancia de teleporte')
+assert.equal(manager.cameras.main.obj.teleport_distance, 200)
+click('Zerar estimativa de movimento')
+panel.look_ahead_enabled = false
+click('Aplicar ativacao do look ahead')
+assert.equal(manager.cameras.main.obj.look_ahead_enabled, false)
 panel.bounds_x = 100
 panel.bounds_y = 80
 panel.bounds_width = 500
@@ -169,6 +184,10 @@ assert.equal(configuredFps, 60)
 click('Criar alvo no ponto')
 click('Seguir alvo temporario')
 assert.equal(manager.cameras.main.obj.object_to_follow, temporary)
+panel.point_x = 900
+panel.point_y = 700
+click('Teleportar alvo temporario')
+assert.deepEqual([temporary.x, temporary.y], [900, 700])
 click('Destruir alvo temporario')
 manager.cameras.main.obj.update_camera()
 assert.equal(manager.cameras.main.obj.mode, common.CAM_MODE.FIXED)
@@ -187,6 +206,30 @@ click('Associar camera selecionada')
 click('Ativar camera na main')
 click('Ajustar proporcao pela viewport')
 click('Ajustar cameras visiveis')
+click('Grupo jogadores 1 e 2')
+assert.equal(manager.cameras.main.obj.mode, common.CAM_MODE.FOLLOW_GROUP)
+manager.cameras.main.obj.update_camera()
+panel.update()
+assert.equal(panel.camera_group_count, 2)
+panel.group_margin_x = 40
+click('Aplicar enquadramento do grupo')
+assert.equal(manager.cameras.main.obj.group_margin.x, 40)
+panel.group_framing_enabled = false
+click('Aplicar ativacao do enquadramento')
+assert.equal(manager.cameras.main.obj.group_framing_enabled, false)
+click('Grupo dois pontos')
+panel.follow_target = player1
+click('Adicionar ID ao grupo')
+click('Adicionar ponto ao grupo')
+panel.group_index = 0
+panel.point_x = 350
+panel.point_y = 400
+click('Mover ponto do grupo')
+assert.deepEqual([manager.cameras.main.obj.focus_group.sources[0].point.x, manager.cameras.main.obj.focus_group.sources[0].point.y], [350, 400])
+click('Remover fonte do grupo')
+click('Limpar grupo')
+assert.equal(manager.cameras.main.obj.mode, common.CAM_MODE.FIXED)
+assert.equal(manager.cameras.main.obj.focus_group.count, 0)
 panel.camera_name = 'test'
 click('Criar camera')
 panel.viewport_id = 3

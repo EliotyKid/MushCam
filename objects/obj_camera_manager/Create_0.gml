@@ -263,6 +263,48 @@ camera_follow = function (_name, _target, _snap = false) {
   return _data.obj.set_follow_target(_target, _snap)
 }
 
+camera_follow_group = function(_name, _sources, _snap = false)  {
+  var _data = get_camera(_name)
+  if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
+  return _data.obj.set_follow_group(_sources, _snap)
+}
+
+camera_add_group_target = function(_name, _source)  {
+  var _data = get_camera(_name)
+  if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
+  return _data.obj.add_group_target(_source)
+}
+
+camera_remove_group_target = function(_name, _index)  {
+  var _data = get_camera(_name)
+  if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
+  return _data.obj.remove_group_target(_index)
+}
+
+camera_set_group_point = function(_name, _index, _x, _y)  {
+  var _data = get_camera(_name)
+  if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
+  return _data.obj.focus_group.set_point(_index, _x, _y)
+}
+
+camera_clear_group = function(_name)  {
+  var _data = get_camera(_name)
+  if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
+  return _data.obj.clear_group()
+}
+
+camera_set_group_framing = function(_name, _margin_x, _margin_y = _margin_x, _min_scale = .5, _max_scale = 0)  {
+  var _data = get_camera(_name)
+  if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
+  return _data.obj.set_group_framing(_margin_x, _margin_y, _min_scale, _max_scale)
+}
+
+camera_set_group_framing_enabled = function(_name, _enabled = true)  {
+  var _data = get_camera(_name)
+  if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
+  return _data.obj.set_group_framing_enabled(_enabled)
+}
+
 camera_set_mode = function(_name, _mode)  {
   var _data = get_camera(_name)
   if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
@@ -349,6 +391,36 @@ camera_set_dead_zone_enabled = function(_name, _enabled = true)  {
   var _data = get_camera(_name)
   if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
   return _data.obj.set_dead_zone_enabled(_enabled)
+}
+
+camera_set_look_ahead = function(_name, _time_x, _time_y = _time_x, _max_x = 80, _max_y = 50)  {
+  var _data = get_camera(_name)
+  if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
+  return _data.obj.set_look_ahead(_time_x, _time_y, _max_x, _max_y)
+}
+
+camera_set_look_ahead_smoothing = function(_name, _x, _y = _x)  {
+  var _data = get_camera(_name)
+  if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
+  return _data.obj.set_look_ahead_smoothing(_x, _y)
+}
+
+camera_set_look_ahead_enabled = function(_name, _enabled = true)  {
+  var _data = get_camera(_name)
+  if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
+  return _data.obj.set_look_ahead_enabled(_enabled)
+}
+
+camera_set_teleport_distance = function(_name, _distance)  {
+  var _data = get_camera(_name)
+  if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
+  return _data.obj.set_teleport_distance(_distance)
+}
+
+camera_reset_look_ahead = function(_name)  {
+  var _data = get_camera(_name)
+  if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
+  return _data.obj.reset_look_ahead()
 }
 
 destroy_viewport = function (_id) {

@@ -1,0 +1,10 @@
+{
+  "$GMScript":"v1",
+  "%Name":"CameraFocusGroup",
+  "isCompatibility":false,
+  "isDnD":false,
+  "name":"CameraFocusGroup",
+  "parent":{"name":"MushCam","path":"folders/MushCam.yy",},
+  "resourceType":"GMScript",
+  "resourceVersion":"2.0",
+}

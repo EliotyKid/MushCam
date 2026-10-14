@@ -26,10 +26,11 @@ function Vec2(x, y = x) {
 
 const common = {
   Vec2,
-  CAM_MODE: { FOLLOW_OBJECT: 0, TO_TARGET: 1, FIXED: 2, MANUAL: 3 },
+  CAM_MODE: { FOLLOW_OBJECT: 0, TO_TARGET: 1, FIXED: 2, MANUAL: 3, FOLLOW_GROUP: 4 },
   LAYOUT: { SINGLE: 0, SPLIT_VERTICAL: 1, SPLIT_HORIZONTAL: 2, GRID: 3, LENGHT: 4 },
   min: Math.min, max: Math.max, floor: Math.floor, ceil: Math.ceil,
   sqrt: Math.sqrt, round: Math.round,
+  abs: Math.abs,
   power: Math.pow,
   delta_time: 1000000 / 60,
   lerp: (a, b, t) => a + (b - a) * t,
@@ -37,6 +38,18 @@ const common = {
   clamp: (v, lo, hi) => Math.max(lo, Math.min(hi, v)),
   array_length: a => a.length,
   array_push: (a, item) => a.push(item),
+  array_delete: (a, index, count) => a.splice(index, count),
+  is_array: Array.isArray,
+  is_struct: v => v !== null && typeof v === 'object' && !Array.isArray(v),
+  is_numeric: v => typeof v === 'number',
+  string: String,
+  object_exists: () => false,
+  variable_instance_get: (target, key) => target[key],
+  CameraFocusGroup: function() {
+    const source = fs.readFileSync(path.join(root, 'scripts/CameraFocusGroup/CameraFocusGroup.gml'), 'utf8')
+    const body = source.slice(source.indexOf('{') + 1, source.lastIndexOf('}')).replace(/^  /gm, '')
+    return runSource(body, { ...common })
+  },
   is_string: v => typeof v === 'string',
   is_real: v => typeof v === 'number',
   is_nan: Number.isNaN,

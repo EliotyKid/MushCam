@@ -40,6 +40,30 @@ function CameraDebug(_manager) constructor {
   show_dead_zone = true
   camera_dead_zone = undefined
   camera_dead_zone_enabled = false
+  look_ahead_enabled = false
+  look_ahead_time_x = .25
+  look_ahead_time_y = .25
+  look_ahead_max_x = 80
+  look_ahead_max_y = 50
+  look_ahead_spd_x = .1
+  look_ahead_spd_y = .1
+  teleport_distance = 256
+  camera_look_ahead = new Vec2(0)
+  camera_look_ahead_desired = new Vec2(0)
+  camera_target_velocity = new Vec2(0)
+  camera_look_ahead_enabled = false
+  group_index = 0
+  group_margin_x = 32
+  group_margin_y = 32
+  group_min_scale = .5
+  group_max_scale = 0
+  group_framing_enabled = true
+  camera_group_sources = []
+  camera_group_count = 0
+  camera_group_center = undefined
+  camera_group_bounds = undefined
+  camera_group_fits = false
+  camera_group_max_reached = false
   screen_width = 640
   screen_height = 380
   viewport_id = 0
@@ -55,6 +79,7 @@ function CameraDebug(_manager) constructor {
   camera_exists = false
   camera_names = []
   camera_pos = new Vec2(0)
+  camera_follow_center = new Vec2(0)
   camera_desired_pos = new Vec2(0)
   camera_render_pos = new Vec2(0)
   camera_size = new Vec2(0)
@@ -99,6 +124,7 @@ function CameraDebug(_manager) constructor {
     camera_exists = !is_undefined(_data)
     if  (!camera_exists)  {
       camera_pos = undefined
+      camera_follow_center = undefined
       camera_desired_pos = undefined
       camera_render_pos = undefined
       camera_size = undefined
@@ -117,10 +143,21 @@ function CameraDebug(_manager) constructor {
       camera_uses_room = false
       camera_dead_zone = undefined
       camera_dead_zone_enabled = false
+      camera_look_ahead = undefined
+      camera_look_ahead_desired = undefined
+      camera_target_velocity = undefined
+      camera_look_ahead_enabled = false
+      camera_group_sources = []
+      camera_group_count = 0
+      camera_group_center = undefined
+      camera_group_bounds = undefined
+      camera_group_fits = false
+      camera_group_max_reached = false
       return undefined
     }
     var _obj = _data.obj
     camera_pos = new Vec2(_obj.pos.x, _obj.pos.y)
+    camera_follow_center = new Vec2(_obj.follow_pos.x, _obj.follow_pos.y)
     camera_desired_pos = new Vec2(_obj.desired_pos.x, _obj.desired_pos.y)
     camera_render_pos = new Vec2(_obj.render_pos.x, _obj.render_pos.y)
     camera_size = new Vec2(_obj.size.x, _obj.size.y)
@@ -139,6 +176,16 @@ function CameraDebug(_manager) constructor {
     camera_uses_room = is_undefined(_obj.bounds)
     camera_dead_zone = _obj.get_dead_zone()
     camera_dead_zone_enabled = _obj.dead_zone_enabled
+    camera_look_ahead = new Vec2(_obj.look_ahead.x, _obj.look_ahead.y)
+    camera_look_ahead_desired = new Vec2(_obj.look_ahead_desired.x, _obj.look_ahead_desired.y)
+    camera_target_velocity = new Vec2(_obj.target_velocity.x, _obj.target_velocity.y)
+    camera_look_ahead_enabled = _obj.look_ahead_enabled
+    camera_group_sources = _obj.focus_group.sources
+    camera_group_count = _obj.focus_group.count
+    camera_group_center = new Vec2(_obj.focus_group.pos.x, _obj.focus_group.pos.y)
+    camera_group_bounds = _obj.focus_group.bounds
+    camera_group_fits = _obj.group_fits
+    camera_group_max_reached = _obj.group_max_reached
   }
 
   load_camera = function()  {
@@ -164,6 +211,19 @@ function CameraDebug(_manager) constructor {
     dead_zone_width = _obj.dead_zone_size.x
     dead_zone_height = _obj.dead_zone_size.y
     dead_zone_enabled = _obj.dead_zone_enabled
+    look_ahead_enabled = _obj.look_ahead_enabled
+    look_ahead_time_x = _obj.look_ahead_time.x
+    look_ahead_time_y = _obj.look_ahead_time.y
+    look_ahead_max_x = _obj.look_ahead_max.x
+    look_ahead_max_y = _obj.look_ahead_max.y
+    look_ahead_spd_x = _obj.look_ahead_spd.x
+    look_ahead_spd_y = _obj.look_ahead_spd.y
+    teleport_distance = _obj.teleport_distance
+    group_margin_x = _obj.group_margin.x
+    group_margin_y = _obj.group_margin.y
+    group_min_scale = _obj.group_min_scale
+    group_max_scale = _obj.group_max_scale
+    group_framing_enabled = _obj.group_framing_enabled
     var _bounds = _obj.get_bounds()
     bounds_x = _bounds.pos.x
     bounds_y = _bounds.pos.y
@@ -251,6 +311,7 @@ function CameraDebug(_manager) constructor {
 
   dbg_section("Infos")
   dbg_watch(ref_create(self, "camera_pos"), "Centro base")
+  dbg_watch(ref_create(self, "camera_follow_center"), "Centro de acompanhamento sem antecipacao")
   dbg_watch(ref_create(self, "camera_desired_pos"), "Centro desejado")
   dbg_watch(ref_create(self, "camera_render_pos"), "Posicao nativa")
   dbg_watch(ref_create(self, "camera_size"), "Size")
@@ -259,7 +320,7 @@ function CameraDebug(_manager) constructor {
 
   dbg_section("Cam modes")
   dbg_watch(ref_create(self, "camera_mode"), "Estado atual")
-  dbg_drop_down(ref_create(self, "selected_mode"), "FollowObject:0,ToTarget:1,Fixed:2,Manual:3", "Novo estado")
+  dbg_drop_down(ref_create(self, "selected_mode"), "FollowObject:0,ToTarget:1,Fixed:2,Manual:3,FollowGroup:4", "Novo estado")
   dbg_button("Aplicar estado", function()  {
     report("camera_set_mode", manager.camera_set_mode(camera_name, selected_mode))
   })
@@ -283,6 +344,57 @@ function CameraDebug(_manager) constructor {
     report("camera_follow noone", manager.camera_follow(camera_name, noone))
   })
 
+  dbg_section("Foco em grupo")
+  dbg_watch(ref_create(self, "camera_group_sources"), "Fontes registradas na ordem dos indices")
+  dbg_watch(ref_create(self, "camera_group_count"), "Pontos e alvos validos")
+  dbg_watch(ref_create(self, "camera_group_center"), "Centro da regiao do grupo")
+  dbg_watch(ref_create(self, "camera_group_bounds"), "Regiao que contem o grupo")
+  dbg_watch(ref_create(self, "camera_group_fits"), "Todos visiveis com margens")
+  dbg_watch(ref_create(self, "camera_group_max_reached"), "Limite de afastamento atingido")
+  dbg_button("Grupo jogadores 1 e 2", function()  {
+    var _player1 = instance_find(obj_player, 0)
+    var _player2 = instance_find(obj_player2, 0)
+    if  (_player1 == noone || _player2 == noone)  {
+      report("camera_follow_group", false)
+      return undefined
+    }
+    report("camera_follow_group", manager.camera_follow_group(camera_name, [{instance: _player1}, {instance: _player2}], snap))
+  })
+  dbg_button("Grupo dois pontos", function()  {
+    report("camera_follow_group", manager.camera_follow_group(camera_name, [new Vec2(point_x, point_y), new Vec2(point_x + delta_x, point_y + delta_y)], snap))
+  })
+  dbg_button("Adicionar ID ao grupo", function()  {
+    report("camera_add_group_target", manager.camera_add_group_target(camera_name, {instance: follow_target}))
+  })
+  dbg_button("Adicionar ponto ao grupo", function()  {
+    report("camera_add_group_target", manager.camera_add_group_target(camera_name, new Vec2(point_x, point_y)))
+  })
+  dbg_text_input(ref_create(self, "group_index"), "Indice da fonte (inicia em zero)", "i")
+  dbg_button("Mover ponto do grupo", function()  {
+    report("camera_set_group_point", manager.camera_set_group_point(camera_name, group_index, point_x, point_y))
+  })
+  dbg_button("Remover fonte do grupo", function()  {
+    report("camera_remove_group_target", manager.camera_remove_group_target(camera_name, group_index))
+  })
+  dbg_button("Limpar grupo", function()  {
+    report("camera_clear_group", manager.camera_clear_group(camera_name))
+  })
+  dbg_text_input(ref_create(self, "group_margin_x"), "Margem horizontal por lado", "f")
+  dbg_text_input(ref_create(self, "group_margin_y"), "Margem vertical por lado", "f")
+  dbg_text_input(ref_create(self, "group_min_scale"), "Escala minima do campo de visao", "f")
+  dbg_text_input(ref_create(self, "group_max_scale"), "Escala maxima (zero sem limite)", "f")
+  dbg_checkbox(ref_create(self, "group_framing_enabled"), "Enquadramento automatico")
+  dbg_button("Aplicar enquadramento do grupo", function()  {
+    var _result = manager.camera_set_group_framing(camera_name, group_margin_x, group_margin_y, group_min_scale, group_max_scale)
+    if  (_result)  _result = manager.camera_set_group_framing_enabled(camera_name, group_framing_enabled)
+    report("camera_set_group_framing", _result)
+  })
+  dbg_button("Aplicar ativacao do enquadramento", function()  {
+    report("camera_set_group_framing_enabled", manager.camera_set_group_framing_enabled(camera_name, group_framing_enabled))
+  })
+  dbg_text("Use Ponto X/Y e Deslocamento X/Y da secao Posicao e movimento")
+  dbg_text("Zoom manual pode afastar mais; aproximar preserva o grupo")
+
   dbg_section("Posicao e movimento")
   dbg_text_input(ref_create(self, "point_x"), "Ponto X", "f")
   dbg_text_input(ref_create(self, "point_y"), "Ponto Y", "f")
@@ -302,8 +414,8 @@ function CameraDebug(_manager) constructor {
   })
 
   dbg_section("Zoom e offset")
-  dbg_watch(ref_create(self, "camera_zoom"), "Zoom atual")
-  dbg_watch(ref_create(self, "camera_zoom_target"), "Zoom desejado atual")
+  dbg_watch(ref_create(self, "camera_zoom"), "Zoom manual atual")
+  dbg_watch(ref_create(self, "camera_zoom_target"), "Zoom manual desejado atual")
   dbg_slider(ref_create(self, "zoom_percent"), -1, 1, "Zoom percent", .01)
   dbg_button("Aplicar zoom", function()  {
     report("camera_set_zoom", manager.camera_set_zoom(camera_name, zoom_percent))
@@ -372,7 +484,38 @@ function CameraDebug(_manager) constructor {
     report("camera_set_dead_zone_enabled", manager.camera_set_dead_zone_enabled(camera_name, dead_zone_enabled))
   })
   dbg_checkbox(ref_create(self, "show_dead_zone"), "Mostrar contorno nas viewports")
-  dbg_text("Atua em FollowObject. Zero em um eixo segue normalmente nesse eixo")
+  dbg_text("Atua em FollowObject e FollowGroup. Zero em um eixo segue normalmente")
+
+  dbg_section("Look ahead")
+  dbg_watch(ref_create(self, "camera_look_ahead_enabled"), "Look ahead ativo")
+  dbg_watch(ref_create(self, "camera_look_ahead"), "Antecipacao atual")
+  dbg_watch(ref_create(self, "camera_look_ahead_desired"), "Antecipacao desejada")
+  dbg_watch(ref_create(self, "camera_target_velocity"), "Velocidade estimada em pixels/s")
+  dbg_checkbox(ref_create(self, "look_ahead_enabled"), "Ativar look ahead")
+  dbg_text_input(ref_create(self, "look_ahead_time_x"), "Antecipacao X em segundos", "f")
+  dbg_text_input(ref_create(self, "look_ahead_time_y"), "Antecipacao Y em segundos", "f")
+  dbg_text_input(ref_create(self, "look_ahead_max_x"), "Deslocamento maximo X", "f")
+  dbg_text_input(ref_create(self, "look_ahead_max_y"), "Deslocamento maximo Y", "f")
+  dbg_button("Aplicar look ahead", function()  {
+    var _result = manager.camera_set_look_ahead(camera_name, look_ahead_time_x, look_ahead_time_y, look_ahead_max_x, look_ahead_max_y)
+    if  (_result)  _result = manager.camera_set_look_ahead_enabled(camera_name, look_ahead_enabled)
+    report("camera_set_look_ahead", _result)
+  })
+  dbg_button("Aplicar ativacao do look ahead", function()  {
+    report("camera_set_look_ahead_enabled", manager.camera_set_look_ahead_enabled(camera_name, look_ahead_enabled))
+  })
+  dbg_slider(ref_create(self, "look_ahead_spd_x"), 0, 1, "Suavizacao antecipacao X", .01)
+  dbg_slider(ref_create(self, "look_ahead_spd_y"), 0, 1, "Suavizacao antecipacao Y", .01)
+  dbg_button("Aplicar suavizacao do look ahead", function()  {
+    report("camera_set_look_ahead_smoothing", manager.camera_set_look_ahead_smoothing(camera_name, look_ahead_spd_x, look_ahead_spd_y))
+  })
+  dbg_text_input(ref_create(self, "teleport_distance"), "Distancia para detectar teleporte", "f")
+  dbg_button("Aplicar distancia de teleporte", function()  {
+    report("camera_set_teleport_distance", manager.camera_set_teleport_distance(camera_name, teleport_distance))
+  })
+  dbg_button("Zerar estimativa de movimento", function()  {
+    report("camera_reset_look_ahead", manager.camera_reset_look_ahead(camera_name))
+  })
 
   dbg_section("Teste de FPS")
   dbg_watch(ref_create(self, "current_fps"), "FPS configurado")
@@ -397,6 +540,14 @@ function CameraDebug(_manager) constructor {
     report("Seguir alvo temporario", instance_exists(temporary_target) && manager.camera_follow(camera_name, temporary_target, snap))
   })
   dbg_button("Destruir alvo temporario", destroy_target)
+  dbg_button("Teleportar alvo temporario", function()  {
+    var _exists = instance_exists(temporary_target)
+    if  (_exists)  {
+      temporary_target.x = point_x
+      temporary_target.y = point_y
+    }
+    report("Teleportar alvo temporario", _exists)
+  })
 
   dbg_section("Layout e tela")
   dbg_watch(ref_create(self, "current_layout"), "Layout atual")
