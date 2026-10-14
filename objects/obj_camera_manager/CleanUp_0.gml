@@ -1,3 +1,5 @@
+if  (!is_undefined(debug_panel))  debug_panel.destroy()
+
 for(var i=0; i<array_length(viewports); i++)  {
   var _id = viewports[i].id
   view_visible[_id] = false

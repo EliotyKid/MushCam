@@ -1,3 +1,7 @@
+if  (is_keyboard_used_debug_overlay())  {
+  exit
+}
+
 inputs()
 apply_velocity()
 

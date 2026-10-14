@@ -1,4 +1,6 @@
 main_view = 0
+debug_enabled = true
+debug_panel = undefined
 cameras = {}
 viewports = []
 screen_size = new Vec2(640, 380)
@@ -255,13 +257,38 @@ camera_activate = function (_name)  {
   return set_viewport_camera(main_view, _name)
 }
 
-camera_follow = function (_name, _target) {
+camera_follow = function (_name, _target, _snap = false) {
   var _data = get_camera(_name)
   if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
-  if  (_target != noone && !instance_exists(_target)) return false
-  _data.obj.object_to_follow = _target
-  _data.obj.mode = CAM_MODE.FOLLOW_OBJECT
-  return true
+  return _data.obj.set_follow_target(_target, _snap)
+}
+
+camera_set_mode = function(_name, _mode)  {
+  var _data = get_camera(_name)
+  if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
+  return _data.obj.set_mode(_mode)
+}
+
+camera_move_to = function(_name, _x, _y)  {
+  var _data = get_camera(_name)
+  if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
+  return _data.obj.move_to(_x, _y)
+}
+
+camera_set_position = function(_name, _x, _y)  {
+  var _data = get_camera(_name)
+  if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
+  return _data.obj.set_position(_x, _y)
+}
+
+camera_move = function(_name, _x, _y)  {
+  var _data = get_camera(_name)
+  if  (is_undefined(_data) || !instance_exists(_data.obj))  return false
+  return _data.obj.move_by(_x, _y)
+}
+
+camera_stop = function(_name)  {
+  return camera_set_mode(_name, CAM_MODE.FIXED)
 }
 
 camera_set_offset = function(_name, _x, _y)  {
@@ -315,3 +342,5 @@ create_viewport(0, "main", new Vec2(0), new Vec2(320, 380), true)
 create_viewport(1, "player2", new Vec2(320, 0), new Vec2(320, 380), true)
 var _s = new Vec2(640 / 3, 380 / 3)
 create_viewport(2, "minimap", new Vec2(320 - _s.x * 0.5, 10), _s, true, true)
+
+if  (debug_enabled)  debug_panel = new CameraDebug(id)

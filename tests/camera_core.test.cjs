@@ -26,11 +26,12 @@ function Vec2(x, y = x) {
 
 const common = {
   Vec2,
-  CAM_MODE: { FOLLOW_OBJECT: 0, TO_TARGET: 1 },
+  CAM_MODE: { FOLLOW_OBJECT: 0, TO_TARGET: 1, FIXED: 2, MANUAL: 3 },
   LAYOUT: { SINGLE: 0, SPLIT_VERTICAL: 1, SPLIT_HORIZONTAL: 2, GRID: 3, LENGHT: 4 },
   min: Math.min, max: Math.max, floor: Math.floor, ceil: Math.ceil,
   sqrt: Math.sqrt, round: Math.round,
   lerp: (a, b, t) => a + (b - a) * t,
+  point_distance: (x1, y1, x2, y2) => Math.hypot(x2 - x1, y2 - y1),
   clamp: (v, lo, hi) => Math.max(lo, Math.min(hi, v)),
   array_length: a => a.length,
   array_push: (a, item) => a.push(item),
@@ -66,7 +67,7 @@ function makeCamera() {
 const camera = makeCamera()
 camera.update_camera()
 assert.deepEqual([camera.cam.x, camera.cam.y], [0, 0])
-camera.object_to_follow = { x: 500, y: 400 }
+camera.set_follow_target({ x: 500, y: 400 })
 camera.spd = 1
 camera.update_camera()
 assert.deepEqual([camera.pos.x, camera.pos.y], [500, 400])
@@ -80,7 +81,7 @@ free.update_camera()
 assert.deepEqual([free.pos.x, free.pos.y], freeCenter)
 assert.deepEqual([free.cam.x + free.cam.width / 2, free.cam.y + free.cam.height / 2], freeCenter)
 const smooth = makeCamera()
-smooth.object_to_follow = { x: 500, y: 400 }
+smooth.set_follow_target({ x: 500, y: 400 })
 smooth.update_camera()
 assert.deepEqual([smooth.pos.x, smooth.pos.y], [194, 211])
 assert.deepEqual([smooth.desired_pos.x, smooth.desired_pos.y], [500, 400])
@@ -112,8 +113,7 @@ assert.equal(camera.new_zoom_percent, -1)
 camera.object_to_follow.destroyed = true
 camera.update_camera()
 assert.deepEqual([camera.pos.x, camera.pos.y], center, 'Losing a target must preserve the base center')
-camera.mode = camera.CAM_MODE.TO_TARGET
-camera.to_target_pos = new Vec2(300, 250)
+camera.move_to(300, 250)
 camera.update_camera()
 assert.deepEqual([camera.pos.x, camera.pos.y], [320, 190])
 camera.can_outside_room = false
@@ -128,8 +128,8 @@ assert.deepEqual([camera.pos.x, camera.pos.y], [500, 400])
 const main = makeCamera()
 const second = makeCamera()
 const minimap = makeCamera()
-main.object_to_follow = { x: 500, y: 400 }
-second.object_to_follow = { x: 700, y: 400 }
+main.set_follow_target({ x: 500, y: 400 })
+second.set_follow_target({ x: 700, y: 400 })
 main.spd = second.spd = 1
 const manager = runSource(managerSource.slice(0, managerSource.indexOf('create_camera("main"')), {
   ...common,
@@ -190,6 +190,78 @@ assert.equal(manager.layout_transition, false)
 manager.set_layout(3)
 assert.equal(manager.view_visible[1], true)
 
+const controlled = makeCamera()
+assert.equal(controlled.mode, common.CAM_MODE.FIXED)
+controlled.set_target_offset(10, -20)
+controlled.set_position(200, 250)
+controlled.update_camera()
+assert.deepEqual([controlled.pos.x, controlled.pos.y], [200, 250], 'Fixed coordinates ignore the target offset')
+controlled.move_to(400, 450)
+controlled.update_camera()
+assert.equal(controlled.mode, common.CAM_MODE.TO_TARGET)
+assert.ok(controlled.pos.x > 200 && controlled.pos.x < 410)
+controlled.set_mode(common.CAM_MODE.TO_TARGET)
+assert.deepEqual([controlled.to_target_pos.x, controlled.to_target_pos.y], [400, 450], 'Repeating a mode must preserve its destination')
+for (let frame = 0; frame < 200; frame++) controlled.update_camera()
+assert.deepEqual([controlled.pos.x, controlled.pos.y], [410, 430])
+assert.equal(controlled.mode, common.CAM_MODE.FIXED, 'Arrival must stop exactly at the destination')
+controlled.move_to(900, 700)
+controlled.update_camera()
+controlled.set_mode(common.CAM_MODE.FIXED)
+const stopped = [controlled.pos.x, controlled.pos.y]
+for (let frame = 0; frame < 10; frame++) controlled.update_camera()
+assert.deepEqual([controlled.pos.x, controlled.pos.y], stopped)
+controlled.move_by(20, -30)
+controlled.move_by(10, 5)
+controlled.update_camera()
+assert.equal(controlled.mode, common.CAM_MODE.MANUAL)
+assert.deepEqual([controlled.pos.x, controlled.pos.y], [stopped[0] + 30, stopped[1] - 25])
+const manuallyMoved = [controlled.pos.x, controlled.pos.y]
+controlled.set_zoom_percent(1)
+controlled.update_camera()
+assert.deepEqual([controlled.pos.x, controlled.pos.y], manuallyMoved)
+const target = { x: 300, y: 400 }
+controlled.set_follow_target(target, true)
+assert.deepEqual([controlled.pos.x, controlled.pos.y], [310, 380])
+const previousMode = controlled.mode
+assert.equal(controlled.set_mode(99), false)
+assert.equal(controlled.set_follow_target({ destroyed: true }), false)
+assert.equal(controlled.mode, previousMode)
+assert.equal(controlled.object_to_follow, target)
+target.destroyed = true
+controlled.update_camera()
+assert.equal(controlled.mode, common.CAM_MODE.FIXED)
+assert.equal(controlled.object_to_follow, common.noone)
+assert.deepEqual([controlled.pos.x, controlled.pos.y], [310, 380])
+assert.equal(controlled.set_mode(common.CAM_MODE.FOLLOW_OBJECT), false)
+controlled.set_follow_target({ x: 700, y: 600 })
+assert.equal(controlled.set_follow_target(common.noone), true)
+assert.equal(controlled.mode, common.CAM_MODE.FIXED)
+controlled.can_outside_room = false
+controlled.zoom_spd = 1
+controlled.set_zoom_percent(0)
+controlled.move_to(-100, -100)
+for (let frame = 0; frame < 200; frame++) controlled.update_camera()
+assert.deepEqual([controlled.pos.x, controlled.pos.y], [160, 190])
+assert.equal(controlled.mode, common.CAM_MODE.FIXED, 'A destination outside the room must finish at the reachable boundary')
+
+assert.equal(manager.camera_move_to('missing', 10, 20), false)
+assert.equal(manager.camera_set_position('main', 250, 300), true)
+main.update_camera()
+assert.deepEqual([main.pos.x, main.pos.y], [250, 300])
+assert.equal(manager.camera_move('main', 30, -10), true)
+assert.deepEqual([main.pos.x, main.pos.y], [280, 290])
+assert.equal(manager.camera_stop('main'), true)
+assert.equal(main.mode, common.CAM_MODE.FIXED)
+assert.equal(manager.camera_move_to('main', 600, 400), true)
+main.update_camera()
+assert.deepEqual([main.pos.x, main.pos.y], [600, 370])
+assert.equal(manager.camera_follow('main', { x: 500, y: 500 }, true), true)
+assert.deepEqual([main.pos.x, main.pos.y], [500, 470])
+assert.equal(manager.camera_set_mode('main', common.CAM_MODE.MANUAL), true)
+assert.equal(manager.camera_follow('main', common.noone), true)
+assert.equal(main.mode, common.CAM_MODE.FIXED)
+
 assert.ok(!/return\s*\r?\n/.test(cameraSource + managerSource), 'Bare returns can consume the next expression in GML')
 assert.ok(!/;\s*$/m.test(cameraSource), 'Do not add semicolons at the end of GML instructions')
 assert.ok(!/keyboard_check|obj_player/.test(cameraSource), 'Camera behavior must not depend on player inputs')
@@ -198,3 +270,5 @@ const events = fs.readFileSync(path.join(root, 'objects/obj_camera/obj_camera.yy
 assert.match(events, /"eventNum":2,"eventType":3/)
 assert.equal(fs.readFileSync(path.join(root, 'objects/obj_camera/Step_2.gml'), 'utf8').trim(), 'update_camera()')
 console.log('Camera calculations, viewport integration and architecture checks passed (mocked APIs, not GameMaker)')
+
+module.exports = { runSource, common, makeCamera }
